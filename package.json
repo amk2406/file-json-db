@@ -1,6 +1,6 @@
 {
   "name": "file-json-db",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "A resilient, zero-dependency, MongoDB-style JSON document database for Node.js",
   "main": "db.js",
   "types": "db.d.ts",
@@ -22,9 +22,12 @@
     "node": ">=14.0.0"
   },
   "files": [
-    "index.js",
-    "index.d.ts",
+    "db.js",
+    "db.d.ts",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "package.json",
+    "test/basic.js",
+    "examples/basic.js"
   ]
 }
