@@ -264,6 +264,7 @@ class Collection extends EventEmitter {
 
   async _saveIndexAsync() {
     try {
+      ensureDirSync(this.collectionPath)
       const content = this.pretty
         ? JSON.stringify(this.index, null, 2)
         : JSON.stringify(this.index);
@@ -355,6 +356,7 @@ class Collection extends EventEmitter {
 
   _savePartSync(partKey, docs) {
     try {
+      ensureDirSync(this.collectionPath)
       const content = this.pretty
         ? JSON.stringify(docs, null, 2)
         : JSON.stringify(docs);
@@ -411,8 +413,9 @@ class Collection extends EventEmitter {
   // ---------- Core Operations ----------
 
   insert(doc) {
+    ensureDirSync(this.collectionPath)
     if (!doc || typeof doc !== 'object') return null;
-
+    
     const document = { ...doc };
 
     if (this.autoId && getNestedValue(document, this.idField) === undefined) {
@@ -463,6 +466,7 @@ class Collection extends EventEmitter {
 
   // ---------- Find ----------
   find(query = {}) {
+    ensureDirSync(this.collectionPath)
     return new QueryBuilder(this, query);
   }
 
@@ -481,6 +485,7 @@ class Collection extends EventEmitter {
   _executeQuery(builder) {
     const results = [];
     const query = builder.query || {};
+    ensureDirSync(this.collectionPath)
 
     // Try fast path if query uses an indexed field
     const indexedField = this.indexFields.find(f => query[f] !== undefined && typeof query[f] !== 'object');
