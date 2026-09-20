@@ -1,0 +1,30 @@
+{
+  "name": "file-json-db",
+  "version": "1.0.0",
+  "description": "A resilient, zero-dependency, MongoDB-style JSON document database for Node.js",
+  "main": "db.js",
+  "types": "db.d.ts",
+  "scripts": {
+    "test": "node test/basic.js",
+    "example": "node examples/basic.js"
+  },
+  "keywords": [
+    "database", "json", "nosql", "mongodb", "document-database", "file-based",
+    "embedded", "lowdb", "low-json-db", "chunked", "resilient",
+    "transactions", "aggregation", "nodejs", "zero-dependency"
+  ],
+  "homepage": "github.com/amk2406/file-json-db",
+  "readme": "README.md",
+  "repository": {"type": "git", "url": "git+github.com/amk2406/file-json-db"},
+  "author": "Amk <abdulamk2406@gmail.com",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "LICENSE",
+    "README.md"
+  ]
+}
