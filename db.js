@@ -1,6 +1,7 @@
 /**
- * chunkjson-db
+ * file-json-db
  * A resilient, zero-dependency, MongoDB-style JSON document database for Node.js.
+ * v1.1.0 - Improved $pull, updateFunc, safer atomic writes, better resilience
  *
  * - Collection = Folder
  * - Data split into multiple part files
@@ -28,15 +29,53 @@ function ensureDirSync(dir) {
 }
 
 function atomicWriteSync(filePath, content) {
-  const tmp = filePath + '.tmp';
-  fs.writeFileSync(tmp, content, 'utf8');
-  fs.renameSync(tmp, filePath);
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath);
+  const tmp = path.join(dir, `.${base}.${process.pid}.${Date.now()}.tmp`);
+
+  try {
+    fs.writeFileSync(tmp, content, 'utf8');
+    // Retry rename a few times to reduce rare race conditions
+    let lastErr;
+    for (let i = 0; i < 5; i++) {
+      try {
+        fs.renameSync(tmp, filePath);
+        return;
+      } catch (err) {
+        lastErr = err;
+        const start = Date.now();
+        while (Date.now() - start < 5) {}
+      }
+    }
+    throw lastErr;
+  } catch (err) {
+    try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch (_) {}
+    throw err;
+  }
 }
 
 async function atomicWriteAsync(filePath, content) {
-  const tmp = filePath + '.tmp';
-  await fsp.writeFile(tmp, content, 'utf8');
-  await fsp.rename(tmp, filePath);
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath);
+  const tmp = path.join(dir, `.${base}.${process.pid}.${Date.now()}.tmp`);
+
+  try {
+    await fsp.writeFile(tmp, content, 'utf8');
+    let lastErr;
+    for (let i = 0; i < 5; i++) {
+      try {
+        await fsp.rename(tmp, filePath);
+        return;
+      } catch (err) {
+        lastErr = err;
+        await new Promise(r => setTimeout(r, 5));
+      }
+    }
+    throw lastErr;
+  } catch (err) {
+    try { await fsp.unlink(tmp).catch(() => {}); } catch (_) {}
+    throw err;
+  }
 }
 
 function getNestedValue(obj, fieldPath) {
@@ -648,7 +687,19 @@ class Collection extends EventEmitter {
       } else if (op === '$pull') {
         for (const [k, v] of Object.entries(fields)) {
           let arr = getNestedValue(doc, k);
-          if (Array.isArray(arr)) {
+          if (!Array.isArray(arr)) continue;
+
+          if (v && typeof v === 'object' && !Array.isArray(v)) {
+            // Match objects by fields (e.g. { id: 2 })
+            setNestedValue(doc, k, arr.filter(item => {
+              if (item == null || typeof item !== 'object') return true;
+              for (const [fk, fv] of Object.entries(v)) {
+                if (item[fk] !== fv) return true; // keep if not matching
+              }
+              return false; // remove if all fields match
+            }));
+          } else {
+            // Simple value match
             setNestedValue(doc, k, arr.filter(item => item !== v));
           }
         }
@@ -698,9 +749,79 @@ class Collection extends EventEmitter {
     return this._withLock(() => Promise.resolve(this.deleteOne(filter)));
   }
 
+
   deleteManyAsync(filter) {
     return this._withLock(() => Promise.resolve(this.deleteMany(filter)));
   }
+
+  /**
+   * updateFunc - Find documents by filter, pass each to a user function,
+   * and save whatever the function returns.
+   *
+   * @param {object} filter
+   * @param {function} fn - (doc) => newDoc
+   * @param {object} [options] - { multi: true/false }
+   */
+  updateFunc(filter, fn, options = {}) {
+    if (typeof fn !== 'function') {
+      throw new Error('updateFunc requires a function as second argument');
+    }
+
+    const multi = options.multi !== false; // default true
+    const results = [];
+    const parts = this._listPartFiles();
+    let found = false;
+
+    for (const partName of parts) {
+      if (!multi && found) break;
+
+      const partKey = partName.replace('part-', '').replace('.json', '');
+      let docs = this._loadPartSync(partKey);
+      if (!docs) continue;
+
+      let modified = false;
+
+      for (let i = 0; i < docs.length; i++) {
+        if (matchQuery(docs[i], filter)) {
+          const original = { ...docs[i] };
+          const returned = fn({ ...docs[i] });
+
+          if (returned && typeof returned === 'object') {
+            // Preserve the original id if user forgot it
+            const idField = this.idField;
+            if (getNestedValue(returned, idField) === undefined) {
+              setNestedValue(returned, idField, getNestedValue(original, idField));
+            }
+            docs[i] = returned;
+            this._updateIndexesForDoc(original, returned, partKey);
+            results.push(returned);
+            modified = true;
+            found = true;
+            if (!multi) break;
+          }
+        }
+      }
+
+      if (modified) {
+        this._savePartSync(partKey, docs);
+      }
+    }
+
+    if (results.length > 0) {
+      this._saveIndexSync();
+      this.emit('update', { collection: this.name, count: results.length });
+      this.db?.emit('update', { collection: this.name, count: results.length });
+      this.emit('save', { collection: this.name });
+      this.db?.emit('save', { collection: this.name });
+    }
+
+    return multi ? results : (results[0] || null);
+  }
+
+  updateFuncAsync(filter, fn, options = {}) {
+    return this._withLock(() => Promise.resolve(this.updateFunc(filter, fn, options)));
+  }
+
 
   _delete(filter, onlyOne) {
     const deleted = [];
