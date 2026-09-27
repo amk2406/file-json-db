@@ -59,6 +59,9 @@ export declare class Collection extends EventEmitter {
   deleteMany(filter: object): object[];
   deleteManyAsync(filter: object): Promise<object[]>;
 
+  updateFunc(filter: object, fn: (doc: object) => object, options?: { multi?: boolean }): object | object[] | null;
+  updateFuncAsync(filter: object, fn: (doc: object) => object, options?: { multi?: boolean }): Promise<object | object[] | null>;
+
   startTransaction(): Transaction;
   aggregate(pipeline?: object[]): object[];
   import(filePath: string, options?: ImportOptions): boolean;
@@ -95,6 +98,9 @@ export declare class Transaction {
   deleteOneAsync(filter: object): Promise<object | null>;
   deleteMany(filter: object): object[];
   deleteManyAsync(filter: object): Promise<object[]>;
+
+  updateFunc(filter: object, fn: (doc: object) => object, options?: { multi?: boolean }): object | object[] | null;
+  updateFuncAsync(filter: object, fn: (doc: object) => object, options?: { multi?: boolean }): Promise<object | object[] | null>;
   commit(): Promise<boolean>;
   rollback(): Promise<boolean>;
 }
