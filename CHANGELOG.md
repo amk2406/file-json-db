@@ -1,40 +1,44 @@
 # Changelog
 
-All notable changes to **file-json-db** will be documented in this file.
+All notable changes to **file-json-db** are documented in this file.
+
+## [1.2.0] - 2026-09-30
+
+### Added
+- **`errorLevel`** option (`'debug'` | `'ignore'`)
+  - `debug` (default): corrupted part files are copied to a `crash/` folder inside the collection and a message is logged
+  - `ignore`: silently skip corrupted parts
+- **`maxRecords`** option – limit the maximum number of documents per part file
+- New update operators:
+  - `$addToSet`
+  - `$pop`
+  - `$rename`
+- Improved empty-file handling (whitespace-only files return `[]`)
+
+### Improved
+- Default `maxPartSize` increased from 128 KB → **256 KB**
+- `rebuildIndexes()` / `rebuildId()` now **always fully rescan** all existing part files and recalculate `nextId` from actual data
+- Safer part loading – process never crashes on invalid JSON
+- Better atomic writes (already present from 1.1.0)
+
+### Fixed
+- Empty part files no longer cause `JSON.parse` errors
+- Missing / deleted parts are correctly handled during rebuild
+- More robust behavior when a part reaches its size or record limit
+
+---
 
 ## [1.1.0] - 2026-09-26
 
 ### Added
-- **`updateFunc(filter, fn, options?)`** and **`updateFuncAsync(...)`**
-  - Find documents using a filter
-  - Pass each matching document to your own function
-  - Save whatever the function returns
-  - Supports `{ multi: true/false }` option
+- `updateFunc` / `updateFuncAsync`
 
 ### Improved
-- **`$pull` operator**
-  - Now supports removing specific objects from arrays by matching fields
-  - Example: `$pull: { names: { id: 2 } }` removes the object that has `id: 2`
-
-- **Atomic writes**
-  - Unique temporary file names (includes process id + timestamp)
-  - Retry logic on rename to reduce rare race conditions on some filesystems
-
-- **Resilience**
-  - Better handling when part files are corrupted or missing
-  - Safer index rebuilding
-
-### Fixed
-- Race condition that could occasionally occur during file rename
-- More reliable behavior when a part file reaches its maximum size limit (automatically creates a new part)
+- `$pull` now supports matching objects by fields (e.g. `{ id: 2 }`)
+- Safer atomic writes with unique temp files + retry
 
 ---
 
 ## [1.0.2] - 2026-09-20
 
-- Initial public release on npm
-- Collections as folders
-- Chunked part files
-- Smart index with automatic rebuild
-- MongoDB-style query & update operators
-- Transactions, aggregation, import, backups, events
+- Initial public release
