@@ -1,6 +1,6 @@
 {
   "name": "file-json-db",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "A resilient, zero-dependency, MongoDB-style JSON document database for Node.js",
   "main": "db.js",
   "types": "db.d.ts",
@@ -25,7 +25,7 @@
     "nodejs",
     "zero-dependency"
   ],
-  "homepage": "github.com/amk2406/file-json-db#readme",
+  "homepage": "github.com/amk2406/file-json-db",
   "readme": "README.md",
   "repository": {
     "type": "git",
