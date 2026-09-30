@@ -18,7 +18,7 @@ const path = require('path');
 const { EventEmitter } = require('events');
 const crypto = require('crypto');
 
-const DEFAULT_MAX_PART_SIZE = 128 * 1024; // 128 KB
+const DEFAULT_MAX_PART_SIZE = 256 * 1024; // 256 KB
 
 // ====================== HELPERS ======================
 
@@ -224,6 +224,8 @@ class Collection extends EventEmitter {
     this.indexFields = Array.isArray(options.indexes) ? options.indexes : [];
     this.pretty = options.pretty !== false;
     this.maxPartSize = options.maxPartSize || DEFAULT_MAX_PART_SIZE;
+    this.maxRecords = typeof options.maxRecords === 'number' ? options.maxRecords : null;
+    this.errorLevel = options.errorLevel === 'ignore' ? 'ignore' : 'debug';
 
     this.collectionPath = path.join(dbPath, this.name);
     this.indexPath = path.join(this.collectionPath, 'index.json');
@@ -325,8 +327,9 @@ class Collection extends EventEmitter {
       let maxId = 0;
 
       for (const partName of parts) {
-        const docs = this._loadPartSync(partName);
-        if (!docs) continue;
+        // Always fully rescan – never trust old index
+        const docs = this._loadPartSync(partName) || [];
+        if (!Array.isArray(docs)) continue;
 
         const partKey = partName.replace('part-', '').replace('.json', '');
         let size = 0;
@@ -337,10 +340,10 @@ class Collection extends EventEmitter {
         newIndex.parts[partKey] = { count: docs.length, size };
 
         for (const doc of docs) {
+          if (!doc || typeof doc !== 'object') continue;
           const id = getNestedValue(doc, this.idField);
           if (typeof id === 'number' && id > maxId) maxId = id;
 
-          // Secondary indexes
           for (const field of this.indexFields) {
             const val = getNestedValue(doc, field);
             if (val === undefined || val === null) continue;
@@ -351,6 +354,7 @@ class Collection extends EventEmitter {
         }
       }
 
+      // Always recalculate nextId from actual data
       newIndex.nextId = maxId + 1;
       this.index = newIndex;
       this._saveIndexSync();
@@ -359,6 +363,10 @@ class Collection extends EventEmitter {
       this.db?.emit('index-rebuilt', { collection: this.name });
     } catch (err) {
       this._emitError(err);
+      // Last resort – never leave index in broken state
+      if (!this.index) {
+        this.index = { nextId: 1, parts: {}, indexes: {} };
+      }
     }
   }
 
@@ -384,12 +392,33 @@ class Collection extends EventEmitter {
 
     try {
       if (!fs.existsSync(filePath)) return null;
+
       const content = fs.readFileSync(filePath, 'utf8');
+
+      // Empty or whitespace-only file
+      if (!content || content.trim() === '') {
+        return [];
+      }
+
       const parsed = JSON.parse(content);
-      return Array.isArray(parsed) ? parsed : null;
+      return Array.isArray(parsed) ? parsed : [];
     } catch (err) {
-      this._emitError(new Error(`Failed to load part ${partKey}: ${err.message}`));
-      return null;
+      // Corrupted part file handling
+      if (this.errorLevel === 'debug') {
+        try {
+          const crashDir = path.join(this.collectionPath, 'crash');
+          ensureDirSync(crashDir);
+          const crashName = `part-${partKey}-${Date.now()}.json`;
+          const crashPath = path.join(crashDir, crashName);
+          fs.copyFileSync(filePath, crashPath);
+          console.log(`[file-json-db] Failed to parse part-${partKey}.json → copied to crash/${crashName}`);
+        } catch (copyErr) {
+          // ignore copy failures
+        }
+        this._emitError(new Error(`Failed to load part ${partKey}: ${err.message}`));
+      }
+      // 'ignore' → silent
+      return [];
     }
   }
 
@@ -415,7 +444,9 @@ class Collection extends EventEmitter {
 
   _findPartWithSpace() {
     for (const [partKey, meta] of Object.entries(this.index.parts)) {
-      if (meta.size < this.maxPartSize) return partKey;
+      const sizeOk = (meta.size || 0) < this.maxPartSize;
+      const recordsOk = this.maxRecords == null || (meta.count || 0) < this.maxRecords;
+      if (sizeOk && recordsOk) return partKey;
     }
     return null;
   }
@@ -708,10 +739,46 @@ class Collection extends EventEmitter {
           const keys = k.split('.');
           let current = doc;
           for (let i = 0; i < keys.length - 1; i++) {
-            if (current[keys[i]] == null) return;
+            if (current[keys[i]] == null) break;
             current = current[keys[i]];
           }
-          delete current[keys[keys.length - 1]];
+          if (current && typeof current === 'object') {
+            delete current[keys[keys.length - 1]];
+          }
+        }
+      } else if (op === '$addToSet') {
+        for (const [k, v] of Object.entries(fields)) {
+          let arr = getNestedValue(doc, k);
+          if (!Array.isArray(arr)) {
+            arr = [];
+            setNestedValue(doc, k, arr);
+          }
+          const exists = arr.some(item => JSON.stringify(item) === JSON.stringify(v));
+          if (!exists) arr.push(v);
+        }
+      } else if (op === '$pop') {
+        for (const [k, v] of Object.entries(fields)) {
+          let arr = getNestedValue(doc, k);
+          if (!Array.isArray(arr) || arr.length === 0) continue;
+          if (v === 1) arr.pop();
+          else if (v === -1) arr.shift();
+        }
+      } else if (op === '$rename') {
+        for (const [oldKey, newKey] of Object.entries(fields)) {
+          const val = getNestedValue(doc, oldKey);
+          if (val !== undefined) {
+            setNestedValue(doc, newKey, val);
+            // unset old
+            const keys = oldKey.split('.');
+            let current = doc;
+            for (let i = 0; i < keys.length - 1; i++) {
+              if (current[keys[i]] == null) break;
+              current = current[keys[i]];
+            }
+            if (current && typeof current === 'object') {
+              delete current[keys[keys.length - 1]];
+            }
+          }
         }
       }
     }
