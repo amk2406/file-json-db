@@ -1,220 +1,225 @@
-# file-json-db
+# file-json-db – Complete Guide (A to Z)
 
->A resilient, zero-dependency, MongoDB-style JSON document database for Node.js.
+A resilient, **zero-dependency, MongoDB-style JSON document database for Node.js**.
 
-`file-json-db` stores collections as folders, splits documents across multiple JSON part files, keeps a smart index in memory/on disk, supports MongoDB-style queries and updates, and provides utilities such as backups, aggregation, import/export, transactions, events, and automatic index rebuilding.
+`file-json-db` stores documents on disk while keeping a smart index in memory. Collections are represented as folders, data is split across multiple part files, and writes use atomic file replacement with retry handling.
 
-## Features
-
-- **Zero runtime dependencies**
-- **Node.js >= 14**
-- MongoDB-style document/collection API
-- Collections stored as folders
-- Chunked `part-XXXX.json` data files
-- Configurable maximum part-file size
-- Persistent `index.json`
-- Automatic index rebuilding when the index is invalid or stale
-- Atomic writes through temporary files
-- In-memory query/index processing
-- Secondary indexes for selected fields
-- Automatic ID generation:
-  - numeric auto IDs
-  - UUID
-  - ObjectId-like hexadecimal IDs
-- Nested field access such as `user.profile.name`
-- Query operators:
-  - `$eq`
-  - `$ne`
-  - `$gt`
-  - `$gte`
-  - `$lt`
-  - `$lte`
-  - `$in`
-  - `$nin`
-  - `$exists`
-  - `$regex`
-  - `$type`
-  - `$size`
-  - `$elemMatch`
-  - `$or`
-  - `$and`
-  - `$nor`
-- Query builder:
-  - `.limit()`
-  - `.skip()`
-  - `.sort()`
-  - `.project()`
-  - `.toArray()`
-  - `.first()`
-  - `.count()`
-- CRUD operations
-- Synchronous and Promise-based write helpers
-- Update operators:
-  - `$set`
-  - `$inc`
-  - `$push`
-  - `$pull`
-  - `$unset`
-- Aggregation pipeline:
-  - `$match`
-  - `$sort`
-  - `$limit`
-  - `$skip`
-  - `$project`
-  - `$group`
-  - `$count`
-- Group accumulators:
-  - `$sum`
-  - `$avg`
-  - `$min`
-  - `$max`
-  - `$push`
-- Import from JSON files
-- Database backup
-- Collection unload/drop
-- Events through Node.js `EventEmitter`
-- Basic transaction operation queue
-- Async write locking/serialization
-
->The module is a file-based, embedded, chunked, self-healing JSON/NoSQL database with transactions and aggregation.
+This README explains the database from the basics to the more advanced features, with practical examples and simple explanations.
 
 ---
 
-## Installation
+## Table of Contents
 
-### From npm
+1. [What is file-json-db?](#1-what-is-file-json-db)
+2. [Installation / How to use](#2-installation--how-to-use)
+3. [Creating a Database](#3-creating-a-database)
+4. [Creating Collections](#4-creating-collections)
+5. [Collection Options](#5-collection-options)
+6. [Inserting Documents](#6-inserting-documents)
+7. [Reading Documents](#7-reading-documents)
+8. [Query Operators](#8-query-operators)
+9. [Query Builder](#9-query-builder)
+10. [Updating Documents](#10-updating-documents)
+11. [Update Operators](#11-update-operators)
+12. [updateFunc](#12-updatefunc)
+13. [Deleting Documents](#13-deleting-documents)
+14. [Indexes](#14-indexes)
+15. [Index Rebuilding](#15-index-rebuilding)
+16. [Transactions](#16-transactions)
+17. [Aggregation](#17-aggregation)
+18. [Importing Data](#18-importing-data)
+19. [Backups](#19-backups)
+20. [Events](#20-events)
+21. [Error Handling and Recovery](#21-error-handling-and-recovery)
+22. [Part Files and Storage](#22-part-files-and-storage)
+23. [Real-World Examples](#23-real-world-examples)
+24. [Important Notes & Best Practices](#24-important-notes--best-practices)
+25. [Quick Reference (Cheat Sheet)](#25-quick-reference-cheat-sheet)
+26. [Final Words](#26-final-words)
+
+---
+
+# 1. What is file-json-db?
+
+`file-json-db` is a small document database for Node.js.
+
+Instead of running a separate database server, your application stores its documents directly on the filesystem.
+
+The package describes itself as a:
+
+> resilient, zero-dependency, MongoDB-style JSON document database for Node.js.
+
+The database uses a few important ideas:
+
+- A **database** is a directory.
+- A **collection** is a directory inside the database.
+- Collection data is split into multiple `part-XXXX.json` files.
+- An in-memory index keeps track of parts and configured indexed fields.
+- Writes use atomic temporary files and rename operations.
+- Asynchronous writes are queued through an internal lock.
+- Corrupted part files can be handled without crashing the process.
+- The API uses familiar document-database concepts such as filters, update operators, indexes, aggregation, and transactions.
+
+### Key features
+
+- Zero external runtime dependencies
+- Node.js support
+- JSON document storage
+- Multiple part files per collection
+- In-memory indexes
+- Automatic index rebuilding
+- Atomic writes
+- Retry handling for file replacement
+- Async write queue
+- MongoDB-style query operators
+- Query builder
+- Update operators
+- `updateFunc()` / `updateFuncAsync()`
+- Transactions
+- Aggregation pipeline
+- Import
+- Backup
+- Events
+- Configurable part size
+- Configurable maximum records per part
+- Corrupted-part recovery options
+
+### What it is NOT
+
+`file-json-db` is a file-based embedded database.
+
+It is not a separate database server such as MongoDB or PostgreSQL.
+
+Your application accesses the database directly through Node.js, and the database files live on the filesystem.
+
+---
+
+# 2. Installation / How to use
+
+Install the package with npm:
 
 ```bash
 npm install file-json-db
 ```
 
-### Local project
+The package currently targets Node.js `>=14.0.0`.
 
-
-This modules has no runtime dependencies.
-
-`db.js` as the main entry point and requires Node.js `>=14.0.0`.
-
----
-
-# Quick Start
+## CommonJS
 
 ```js
-const { JSONDB } = require('json-db');
-
-const db = new JSONDB('./database');
-
-const users = db.collection('users');
-
-users.insert({
-  name: 'John',
-  age: 22,
-  email: 'john@example.com'
-});
-
-console.log(users.find({ age: 22 }).toArray());
+const { JSONDB } = require('file-json-db');
 ```
 
-A simple database directory will look approximately like this:
-
-```text
-database/
-└── users/
-    ├── index.json
-    └── part-0001.json
-```
-
-The source implementation represents a collection as a directory and stores its metadata in `index.json`. 
-
----
-
-# Architecture
-
-The basic storage model is:
-
-```text
-JSONDB
-│
-├── users/
-│   ├── index.json
-│   ├── part-0001.json
-│   ├── part-0002.json
-│   └── ...
-│
-├── products/
-│   ├── index.json
-│   ├── part-0001.json
-│   └── ...
-│
-└── orders/
-    ├── index.json
-    └── part-0001.json
-```
-
-Conceptually:
-
-```text
-Database
-   │
-   ├── Collection
-   │      │
-   │      ├── index.json
-   │      ├── part-0001.json
-   │      ├── part-0002.json
-   │      └── part-0003.json
-   │
-   └── Collection
-          │
-          ├── index.json
-          └── part-0001.json
-```
-
-The database creates the root directory if necessary, while each collection creates its own directory when initialized.
-
----
-
-# 1. Creating a Database
+## Creating a database
 
 ```js
 const { JSONDB } = require('file-json-db');
 
+const db = new JSONDB('./data');
+```
+
+The path is created if it does not already exist.
+
+## Basic project
+
+```text
+my-project/
+│
+├── app.js
+├── package.json
+│
+└── data/
+    └── users/
+        ├── index.json
+        └── part-0001.json
+```
+
+The exact number of part files depends on the amount of data and the collection configuration.
+
+---
+
+# 3. Creating a Database
+
+Create a database by constructing `JSONDB`:
+
+```js
+const { JSONDB } = require('file-json-db');
+
+const db = new JSONDB('./data');
+```
+
+The constructor accepts an optional path:
+
+```js
 const db = new JSONDB('./database');
 ```
 
-You can choose another directory:
+If no path is supplied:
 
 ```js
-const db = new JSONDB('./data/my-app-db');
+const db = new JSONDB();
 ```
 
-For an application-specific location:
+the default database path is:
+
+```text
+./database
+```
+
+### Database methods
+
+The database object provides:
 
 ```js
-const path = require('path');
-const { JSONDB } = require('file-json-db');
-
-const databasePath = path.join(process.cwd(), 'data');
-
-const db = new JSONDB(databasePath);
+db.collection()
+db.createCollection()
+db.listCollections()
+db.dropCollection()
+db.unloadCollection()
+db.backup()
+db.backupAsync()
 ```
 
 ---
 
-# 2. Creating Collections
+# 4. Creating Collections
 
-The simplest form:
+A collection is created with:
 
 ```js
 const users = db.collection('users');
 ```
 
-You can also use `createCollection()`:
+You can also use:
 
 ```js
 const users = db.createCollection('users');
 ```
 
-Collections can receive configuration:
+Both return a `Collection`.
+
+## Collection directory
+
+A collection is represented by a directory:
+
+```text
+data/
+└── users/
+    ├── index.json
+    ├── part-0001.json
+    ├── part-0002.json
+    └── ...
+```
+
+This is one of the important differences between a simple single-file JSON database and `file-json-db`.
+
+Large collections can be split across multiple part files.
+
+---
+
+# 5. Collection Options
+
+You can create a collection with configuration options:
 
 ```js
 const users = db.collection({
@@ -222,60 +227,72 @@ const users = db.collection({
   autoId: true,
   idField: '_id',
   idType: 'auto',
-  indexes: ['email', 'username'],
+  indexes: ['username', 'email'],
   pretty: true,
-  maxPartSize: 128 * 1024
+  maxPartSize: 256 * 1024,
+  maxRecords: 1000,
+  errorLevel: 'debug'
 });
 ```
 
-## Collection options
+## Options
 
-| Option | Meaning |
-|---|---|
-| `name` | Collection name |
-| `autoId` | Automatically generate an ID when the configured ID field is missing |
-| `idField` | Field used for the document ID |
-| `idType` | `auto`, `uuid`, or `objectid` |
-| `indexes` | Fields to index |
-| `pretty` | Pretty-print JSON files |
-| `maxPartSize` | Maximum target size used when selecting a part |
+| Option | Type | Default | Meaning |
+|---|---|---|---|
+| `name` | string | required | Collection name |
+| `autoId` | boolean | `false` | Automatically generate an ID when missing |
+| `idField` | string | `_id` | Field used for document IDs |
+| `idType` | string | `auto` | ID generation mode |
+| `indexes` | array | `[]` | Fields that should have indexes |
+| `pretty` | boolean | `true` | Pretty-print JSON files |
+| `maxPartSize` | number | `256 KB` | Maximum part-file size target |
+| `maxRecords` | number / null | `null` | Maximum records per part |
+| `errorLevel` | string | `debug` | Corrupted-part handling mode |
 
-The default maximum part size is `128 KB`.
+## `autoId`
 
----
-
-# 3. Automatic IDs
-
-Enable IDs with:
+Enable automatic IDs:
 
 ```js
 const users = db.collection({
   name: 'users',
   autoId: true
 });
-
-const user = users.insert({
-  name: 'Alice'
-});
-
-console.log(user._id);
 ```
 
-The default `idField` is `_id` and the default `idType` is `auto`.
+If a document does not contain `_id`:
 
-## Numeric IDs
+```js
+users.insert({
+  username: 'alice'
+});
+```
+
+the database generates an ID.
+
+## `idField`
+
+Change the ID field:
 
 ```js
 const users = db.collection({
   name: 'users',
   autoId: true,
-  idType: 'auto'
+  idField: 'id'
 });
 ```
 
-IDs are generated from the collection's `nextId` counter.
+## `idType`
 
-## UUID IDs
+Supported ID types in the implementation are:
+
+```text
+auto
+uuid
+objectid
+```
+
+Example:
 
 ```js
 const users = db.collection({
@@ -285,13 +302,7 @@ const users = db.collection({
 });
 ```
 
-Example:
-
-```text
-550e8400-e29b-41d4-a716-446655440000
-```
-
-## ObjectId-like IDs
+For an ObjectId-style identifier:
 
 ```js
 const users = db.collection({
@@ -301,194 +312,326 @@ const users = db.collection({
 });
 ```
 
-The implementation creates a hexadecimal value containing a timestamp component and random bytes.
+## `pretty`
+
+Pretty JSON:
+
+```js
+pretty: true
+```
+
+Compact JSON:
+
+```js
+pretty: false
+```
+
+Compact JSON can reduce the amount of whitespace written to disk.
+
+## `maxPartSize`
+
+The default maximum part size is currently:
+
+```text
+256 KB
+```
+
+Example:
+
+```js
+maxPartSize: 1024 * 1024
+```
+
+This sets a 1 MB part-size target.
+
+## `maxRecords`
+
+You can also limit the number of documents in each part:
+
+```js
+maxRecords: 1000
+```
+
+A new part is created when the current part reaches either the configured size limit or the configured record limit.
+
+## `errorLevel`
+
+There are two supported modes:
+
+```text
+debug
+ignore
+```
+
+### debug
+
+This is the default.
+
+When a part file cannot be parsed, the database attempts to copy the corrupted part into a `crash/` directory and emits an error.
+
+### ignore
+
+```js
+errorLevel: 'ignore'
+```
+
+Corrupted parts are skipped without the debug crash-file copy and message.
 
 ---
 
-# 4. Insert Documents
+# 6. Inserting Documents
 
-## Insert one document
+## `insert()`
+
+Insert one document:
 
 ```js
 const user = users.insert({
-  name: 'Alice',
-  age: 20,
-  email: 'alice@example.com'
+  username: 'alice',
+  email: 'alice@example.com',
+  age: 25
 });
-
-console.log(user);
 ```
 
 The inserted document is returned.
 
-## Nested documents
+## `insertAsync()`
+
+The asynchronous version:
 
 ```js
-users.insert({
-  name: 'David',
-  profile: {
-    country: 'Nigeria',
-    city: 'Abuja'
-  }
+const user = await users.insertAsync({
+  username: 'alice',
+  email: 'alice@example.com',
+  age: 25
 });
 ```
 
-Nested properties can later be queried with dot notation.
+Asynchronous writes use the collection's internal write queue.
 
-## Insert many
+This means multiple asynchronous writes are serialized through the collection lock.
+
+## `insertMany()`
+
+Insert many documents:
 
 ```js
-const inserted = users.insertMany([
+const users = collection.insertMany([
   {
-    name: 'Alice',
-    age: 20
-  },
-  {
-    name: 'Bob',
+    username: 'alice',
     age: 25
   },
   {
-    name: 'Charlie',
+    username: 'bob',
     age: 30
   }
 ]);
-
-console.log(inserted);
 ```
 
----
+## `insertManyAsync()`
 
-# 5. Finding Documents
-
-## Find everything
+The asynchronous version:
 
 ```js
-const result = users.find().toArray();
-
-console.log(result);
-```
-
-## Find by equality
-
-```js
-const result = users
-  .find({ name: 'Alice' })
-  .toArray();
-```
-
-## Find one
-
-```js
-const user = users.findOne({
-  email: 'alice@example.com'
-});
-
-console.log(user);
-```
-
-If nothing matches, `findOne()` returns `null`.
-
----
-
-# 6. Nested Queries
-
-Because the database supports nested field paths:
-
-```js
-users.insert({
-  name: 'John',
-  profile: {
-    age: 25,
-    address: {
-      city: 'Abuja'
-    }
+const users = await collection.insertManyAsync([
+  {
+    username: 'alice',
+    age: 25
+  },
+  {
+    username: 'bob',
+    age: 30
   }
+]);
+```
+
+### Large insert example
+
+```js
+const documents = [];
+
+for (let i = 0; i < 3500; i++) {
+  documents.push({
+    username: `user_${i}`,
+    email: `user_${i}@example.com`,
+    age: 18 + (i % 50)
+  });
+}
+
+await users.insertManyAsync(documents);
+```
+
+---
+
+# 7. Reading Documents
+
+## `find()`
+
+`find()` returns a query builder:
+
+```js
+const result = users.find({
+  age: 25
 });
 ```
 
-You can query:
+To get the documents:
 
 ```js
-const usersInAbuja = users.find({
-  'profile.address.city': 'Abuja'
+const result = users.find({
+  age: 25
 }).toArray();
 ```
 
-The nested path is resolved by walking each property separated by `.`.
+## `findOne()`
+
+Find one matching document:
+
+```js
+const user = users.findOne({
+  username: 'alice'
+});
+```
+
+Returns the document or `null`.
+
+## `findAsync()`
+
+```js
+const query = await users.findAsync({
+  age: 25
+});
+```
+
+The asynchronous form resolves to the query builder.
+
+## `findOneAsync()`
+
+```js
+const user = await users.findOneAsync({
+  username: 'alice'
+});
+```
+
+## Empty query
+
+An empty query matches all documents:
+
+```js
+const allUsers = users.find({}).toArray();
+```
+
+Count them:
+
+```js
+const count = users.find({}).count();
+```
 
 ---
 
-# 7. Query Operators
+# 8. Query Operators
+
+The query matcher supports several operators.
 
 ## `$eq`
 
+Equal:
+
 ```js
 users.find({
-  age: { $eq: 20 }
+  age: {
+    $eq: 25
+  }
 }).toArray();
 ```
 
 ## `$ne`
 
+Not equal:
+
 ```js
 users.find({
-  status: { $ne: 'banned' }
+  age: {
+    $ne: 25
+  }
 }).toArray();
 ```
 
 ## `$gt`
 
+Greater than:
+
 ```js
 users.find({
-  age: { $gt: 18 }
+  age: {
+    $gt: 25
+  }
 }).toArray();
 ```
 
 ## `$gte`
 
+Greater than or equal:
+
 ```js
 users.find({
-  age: { $gte: 18 }
+  age: {
+    $gte: 25
+  }
 }).toArray();
 ```
 
 ## `$lt`
 
+Less than:
+
 ```js
 users.find({
-  age: { $lt: 30 }
+  age: {
+    $lt: 25
+  }
 }).toArray();
 ```
 
 ## `$lte`
 
+Less than or equal:
+
 ```js
 users.find({
-  age: { $lte: 30 }
+  age: {
+    $lte: 25
+  }
 }).toArray();
 ```
 
 ## `$in`
 
+Match one of several values:
+
 ```js
 users.find({
-  role: {
-    $in: ['admin', 'moderator']
+  age: {
+    $in: [18, 21, 25]
   }
 }).toArray();
 ```
 
 ## `$nin`
 
+Match values that are not in an array:
+
 ```js
 users.find({
-  role: {
-    $nin: ['banned', 'suspended']
+  age: {
+    $nin: [18, 21, 25]
   }
 }).toArray();
 ```
 
 ## `$exists`
+
+Check whether a field exists:
 
 ```js
 users.find({
@@ -498,40 +641,32 @@ users.find({
 }).toArray();
 ```
 
-Find documents where a field does not exist:
-
-```js
-users.find({
-  phone: {
-    $exists: false
-  }
-}).toArray();
-```
-
 ## `$regex`
 
+Regular-expression matching:
+
 ```js
 users.find({
-  name: {
-    $regex: '^A'
+  username: {
+    $regex: '^admin'
   }
 }).toArray();
 ```
 
-Case-insensitive regex:
+Options can be supplied through `$options`:
 
 ```js
 users.find({
-  name: {
-    $regex: 'alice',
+  username: {
+    $regex: '^admin',
     $options: 'i'
   }
 }).toArray();
 ```
 
-The matcher supports regular expressions using either an existing `RegExp` object or a pattern passed to `RegExp`.
-
 ## `$type`
+
+Check the JavaScript-style type:
 
 ```js
 users.find({
@@ -541,9 +676,21 @@ users.find({
 }).toArray();
 ```
 
-Supported type values are based on JavaScript's detected value type, with special handling for `null` and arrays.
+Supported type values follow the implementation's type detection, including values such as:
+
+```text
+string
+number
+boolean
+object
+array
+null
+undefined
+```
 
 ## `$size`
+
+Match an array by its length:
 
 ```js
 users.find({
@@ -555,291 +702,290 @@ users.find({
 
 ## `$elemMatch`
 
-For arrays:
+Match an element inside an array:
 
 ```js
-users.insert({
-  name: 'John',
-  skills: [
-    { name: 'JavaScript', level: 5 },
-    { name: 'Node.js', level: 4 }
-  ]
-});
-```
-
-Then:
-
-```js
-const result = users.find({
-  skills: {
+users.find({
+  roles: {
     $elemMatch: {
-      name: 'Node.js',
-      level: { $gte: 4 }
+      name: 'admin'
     }
   }
 }).toArray();
 ```
 
----
-
-# 8. Logical Queries
-
 ## `$or`
 
+At least one query must match:
+
 ```js
-const result = users.find({
+users.find({
   $or: [
-    { age: { $lt: 18 } },
-    { role: 'admin' }
+    { age: 18 },
+    { age: 25 }
   ]
 }).toArray();
 ```
 
 ## `$and`
 
+All queries must match:
+
 ```js
-const result = users.find({
+users.find({
   $and: [
     { age: { $gte: 18 } },
-    { active: true }
+    { age: { $lt: 30 } }
   ]
 }).toArray();
 ```
 
 ## `$nor`
 
+None of the queries should match:
+
 ```js
-const result = users.find({
+users.find({
   $nor: [
-    { role: 'banned' },
-    { role: 'suspended' }
+    { age: 18 },
+    { age: 25 }
   ]
 }).toArray();
 ```
 
-These logical operators are implemented directly by the query matcher.
+## Nested fields
+
+Nested fields can be addressed with dot notation:
+
+```js
+users.find({
+  'profile.city': 'London'
+}).toArray();
+```
 
 ---
 
 # 9. Query Builder
 
-The query API returns a `QueryBuilder`.
+The query builder supports:
 
-```js
-const query = users.find({
-  active: true
-});
+```text
+limit()
+skip()
+sort()
+project()
+toArray()
+first()
+count()
 ```
 
-You can chain operations.
-
-## Limit
+## `limit()`
 
 ```js
-const result = users
-  .find({ active: true })
+const users = db.collection('users');
+
+const result = users.find({})
   .limit(10)
   .toArray();
 ```
 
-## Skip
+## `skip()`
 
 ```js
-const result = users
-  .find({})
+const result = users.find({})
   .skip(20)
-  .limit(10)
   .toArray();
 ```
 
-This is useful for pagination.
-
-```js
-function getPage(collection, page, pageSize) {
-  return collection
-    .find({})
-    .skip((page - 1) * pageSize)
-    .limit(pageSize)
-    .toArray();
-}
-
-console.log(getPage(users, 1, 20));
-console.log(getPage(users, 2, 20));
-```
-
-## First
-
-```js
-const user = users
-  .find({ active: true })
-  .first();
-```
-
-## Count
-
-```js
-const count = users
-  .find({ active: true })
-  .count();
-
-console.log(count);
-```
-
----
-
-# 10. Sorting
+## `sort()`
 
 Ascending:
 
 ```js
-const result = users
-  .find({})
-  .sort({ age: 1 })
+const result = users.find({})
+  .sort({
+    age: 1
+  })
   .toArray();
 ```
 
 Descending:
 
 ```js
-const result = users
-  .find({})
-  .sort({ age: -1 })
-  .toArray();
-```
-
-Multiple sort fields:
-
-```js
-const result = users
-  .find({})
+const result = users.find({})
   .sort({
-    role: 1,
     age: -1
   })
   .toArray();
 ```
 
-String directions are also recognized by the query sorting implementation:
+Multiple sort fields are supported:
 
 ```js
-users.find({}).sort({
-  age: 'desc'
-}).toArray();
+const result = users.find({})
+  .sort({
+    age: 1,
+    username: 1
+  })
+  .toArray();
 ```
 
----
+## `project()`
 
-# 11. Projection
-
-Projection lets you return selected fields.
+Return only selected fields:
 
 ```js
-const result = users
-  .find({ active: true })
+const result = users.find({})
   .project({
-    name: 1,
+    username: 1,
     email: 1
   })
   .toArray();
 ```
 
-For nested fields:
+## `first()`
+
+Get the first result:
 
 ```js
-const result = users
-  .find({})
-  .project({
-    name: 1,
-    'profile.city': 1
-  })
-  .toArray();
+const user = users.find({
+  age: 25
+}).first();
 ```
 
-The current implementation constructs a new object containing the truthy projection fields.
+Returns:
+
+```text
+document
+```
+
+or:
+
+```text
+null
+```
+
+## `count()`
+
+Count query results:
+
+```js
+const count = users.find({
+  age: 25
+}).count();
+```
+
+## Combining operations
+
+```js
+const result = users.find({
+  age: {
+    $gte: 18
+  }
+})
+.sort({
+  age: 1
+})
+.skip(10)
+.limit(20)
+.project({
+  username: 1,
+  age: 1
+})
+.toArray();
+```
 
 ---
 
-# 12. Indexes
+# 10. Updating Documents
 
-Indexes can be configured when creating a collection:
+## `updateOne()`
 
-```js
-const users = db.collection({
-  name: 'users',
-  autoId: true,
-  indexes: [
-    'email',
-    'username'
-  ]
-});
-```
-
-Now:
-
-```js
-users.find({
-  email: 'alice@example.com'
-}).toArray();
-```
-
-can use the collection's secondary index fast path when the query is an exact, non-object match on an indexed field.
-
-The index stores information linking a field value to a document ID and part file.
-
-## Why indexes matter
-
-Without an index, the database may need to scan:
-
-```text
-part-0001.json
-part-0002.json
-part-0003.json
-part-0004.json
-...
-```
-
-With an applicable index, it can first locate:
-
-```text
-email
-  ↓
-alice@example.com
-  ↓
-document ID + part
-  ↓
-part-0003.json
-```
-
-Complex queries and non-indexed fields use a full scan.
-
----
-
-# 13. Updating Documents
-
-## `$set`
+Update the first matching document:
 
 ```js
 const updated = users.updateOne(
-  { email: 'alice@example.com' },
+  {
+    username: 'alice'
+  },
   {
     $set: {
-      active: true,
-      age: 21
+      age: 26
     }
   }
 );
-
-console.log(updated);
 ```
 
-Nested `$set`:
+## `updateOneAsync()`
+
+```js
+const updated = await users.updateOneAsync(
+  {
+    username: 'alice'
+  },
+  {
+    $set: {
+      age: 26
+    }
+  }
+);
+```
+
+## `updateMany()`
+
+Update every matching document:
+
+```js
+const updated = users.updateMany(
+  {
+    age: {
+      $lt: 18
+    }
+  },
+  {
+    $set: {
+      status: 'minor'
+    }
+  }
+);
+```
+
+## `updateManyAsync()`
+
+```js
+const updated = await users.updateManyAsync(
+  {
+    age: {
+      $lt: 18
+    }
+  },
+  {
+    $set: {
+      status: 'minor'
+    }
+  }
+);
+```
+
+The multiple-update methods return an array of updated documents.
+
+---
+
+# 11. Update Operators
+
+`file-json-db` supports several update operators.
+
+## `$set`
+
+Set a value:
 
 ```js
 users.updateOne(
-  { email: 'alice@example.com' },
+  { username: 'alice' },
   {
     $set: {
-      'profile.city': 'Abuja'
+      age: 26,
+      'profile.city': 'London'
     }
   }
 );
@@ -847,42 +993,61 @@ users.updateOne(
 
 ## `$inc`
 
+Increment a number:
+
 ```js
 users.updateOne(
-  { name: 'Alice' },
+  { username: 'alice' },
   {
     $inc: {
-      points: 10
+      loginCount: 1
     }
   }
 );
 ```
 
-If the current value is missing/falsy, the implementation starts from `0`.
+This is useful for counters.
 
 ## `$push`
 
+Add an item to an array:
+
 ```js
 users.updateOne(
-  { name: 'Alice' },
+  { username: 'alice' },
   {
     $push: {
-      tags: 'javascript'
+      tags: 'developer'
     }
   }
 );
 ```
 
-If the target field is not already an array, the implementation creates an array first.
-
 ## `$pull`
+
+Remove matching values:
 
 ```js
 users.updateOne(
-  { name: 'Alice' },
+  { username: 'alice' },
   {
     $pull: {
-      tags: 'javascript'
+      tags: 'temporary'
+    }
+  }
+);
+```
+
+Objects can also be matched by fields:
+
+```js
+users.updateOne(
+  { username: 'alice' },
+  {
+    $pull: {
+      roles: {
+        id: 2
+      }
     }
   }
 );
@@ -890,9 +1055,11 @@ users.updateOne(
 
 ## `$unset`
 
+Remove a field:
+
 ```js
 users.updateOne(
-  { name: 'Alice' },
+  { username: 'alice' },
   {
     $unset: {
       temporaryToken: true
@@ -901,322 +1068,358 @@ users.updateOne(
 );
 ```
 
----
+## `$addToSet`
 
-# 14. `updateOne()` vs `updateMany()`
-
-Update one document:
+Add a value only if it is not already present:
 
 ```js
-const updated = users.updateOne(
-  { role: 'user' },
+users.updateOne(
+  { username: 'alice' },
   {
-    $set: {
-      active: true
+    $addToSet: {
+      tags: 'nodejs'
     }
   }
 );
 ```
 
-Update every matching document:
+## `$pop`
+
+Remove one item from an array.
+
+Remove the last item:
 
 ```js
-const updated = users.updateMany(
-  { role: 'user' },
+users.updateOne(
+  { username: 'alice' },
   {
-    $set: {
-      active: true
+    $pop: {
+      tags: 1
     }
   }
 );
 ```
 
-`updateOne()` returns the updated document or `null`.
+Remove the first item:
 
-`updateMany()` returns an array of updated documents.
+```js
+users.updateOne(
+  { username: 'alice' },
+  {
+    $pop: {
+      tags: -1
+    }
+  }
+);
+```
+
+## `$rename`
+
+Rename a field:
+
+```js
+users.updateOne(
+  { username: 'alice' },
+  {
+    $rename: {
+      fullname: 'name'
+    }
+  }
+);
+```
 
 ---
 
-# 15. Deleting Documents
+# 12. updateFunc
 
-## Delete one
+`updateFunc()` lets you find documents, pass each document to your own function, and save the returned document.
+
+Basic example:
+
+```js
+users.updateFunc(
+  {
+    age: {
+      $gte: 18
+    }
+  },
+  (doc) => {
+    doc.isAdult = true;
+    return doc;
+  }
+);
+```
+
+By default, `updateFunc()` updates multiple matching documents.
+
+## Update only one
+
+```js
+users.updateFunc(
+  {
+    username: 'alice'
+  },
+  (doc) => {
+    doc.loginCount++;
+    return doc;
+  },
+  {
+    multi: false
+  }
+);
+```
+
+## Async version
+
+```js
+await users.updateFuncAsync(
+  {
+    username: 'alice'
+  },
+  (doc) => {
+    doc.loginCount++;
+    return doc;
+  }
+);
+```
+
+The function receives a copy of the matching document.
+
+If the returned document does not contain the configured ID field, the original ID is preserved.
+
+---
+
+# 13. Deleting Documents
+
+## `deleteOne()`
+
+Delete the first matching document:
 
 ```js
 const deleted = users.deleteOne({
-  email: 'alice@example.com'
+  username: 'alice'
 });
-
-console.log(deleted);
 ```
 
-## Delete many
+## `deleteOneAsync()`
+
+```js
+const deleted = await users.deleteOneAsync({
+  username: 'alice'
+});
+```
+
+## `deleteMany()`
+
+Delete all matching documents:
 
 ```js
 const deleted = users.deleteMany({
-  active: false
+  status: 'inactive'
 });
-
-console.log(deleted);
 ```
 
-When indexed fields are removed from documents, the corresponding index entries are also removed.
+## `deleteManyAsync()`
+
+```js
+const deleted = await users.deleteManyAsync({
+  status: 'inactive'
+});
+```
+
+The multiple-delete methods return an array of deleted documents.
 
 ---
 
-# 16. Async Operations
+# 14. Indexes
 
-Write operations have Promise-based variants.
+Indexes allow the database to maintain a lookup structure for configured fields.
 
-## Insert
+Create indexes when creating the collection:
 
 ```js
-const user = await users.insertAsync({
-  name: 'Alice',
-  age: 20
+const users = db.collection({
+  name: 'users',
+  indexes: [
+    'username',
+    'email'
+  ]
 });
 ```
 
-## Insert many
+Now these fields are indexed:
 
-```js
-const inserted = await users.insertManyAsync([
-  { name: 'Alice' },
-  { name: 'Bob' }
-]);
+```text
+username
+email
 ```
 
-## Update
+An exact query against an indexed field can use the index fast path.
+
+Example:
 
 ```js
-const updated = await users.updateOneAsync(
-  { name: 'Alice' },
+const user = users.findOne({
+  username: 'alice'
+});
+```
+
+### Indexes and updates
+
+When an indexed field changes, the database updates the corresponding index entry.
+
+Example:
+
+```js
+users.updateOne(
   {
-    $inc: {
-      points: 5
+    username: 'alice'
+  },
+  {
+    $set: {
+      username: 'alice_new'
     }
   }
 );
 ```
 
-## Delete
+The index is updated for the new value.
 
-```js
-const deleted = await users.deleteOneAsync({
-  name: 'Alice'
-});
-```
+### Important
 
-The async write methods use an internal queue/lock so concurrent write calls on the same collection are serialized.
+Indexes are configured per collection.
 
----
+They are not automatically created for every field.
 
-# 17. Events
-
-Both the database and collections extend Node.js `EventEmitter`.
-
-```js
-users.on('insert', event => {
-  console.log('Inserted:', event.document);
-});
-```
-
-Listen for updates:
-
-```js
-users.on('update', event => {
-  console.log('Updated documents:', event.count);
-});
-```
-
-Listen for deletes:
-
-```js
-users.on('delete', event => {
-  console.log('Deleted documents:', event.count);
-});
-```
-
-Listen for saves:
-
-```js
-users.on('save', event => {
-  console.log('Collection saved:', event.collection);
-});
-```
-
-Listen for imports:
-
-```js
-users.on('import', event => {
-  console.log('Imported:', event.count);
-});
-```
-
-Listen for transactions:
-
-```js
-users.on('transactionCommit', event => {
-  console.log('Transaction committed:', event.collection);
-});
-
-users.on('transactionRollback', event => {
-  console.log('Transaction rolled back:', event.collection);
-});
-```
-
-Database-level events are also emitted for many collection operations.
+If you frequently search by a field, that field is a candidate for an index.
 
 ---
 
-# 18. Error Handling
+# 15. Index Rebuilding
 
-The database and collections emit an `error` event when internal operations fail.
-
-```js
-db.on('error', err => {
-  console.error('Database error:', err);
-});
-
-users.on('error', err => {
-  console.error('Collection error:', err);
-});
-```
-
-It is a good idea to install error handlers in long-running applications:
-
-```js
-const db = new JSONDB('./database');
-
-db.on('error', error => {
-  console.error('[DB ERROR]', error);
-});
-```
-
----
-
-# 19. Automatic Recovery and Index Rebuilding
-
-Each collection has an `index.json`.
-
-When the index exists, it is loaded when the collection starts.
-
-If the index cannot be parsed or is otherwise invalid, the implementation creates a fresh index and rebuilds it from the available part files.
-
-You can manually rebuild:
+A collection provides:
 
 ```js
 users.rebuildIndexes();
 ```
 
-You can also rebuild the numeric ID state:
+This fully rescans the existing part files and rebuilds the index.
+
+The database also provides:
 
 ```js
-const nextId = users.rebuildId();
-
-console.log('Next ID:', nextId);
+users.rebuildId();
 ```
 
-The rebuild process scans part files, reconstructs part metadata, secondary indexes, and the next numeric ID.
+which rebuilds the index and recalculates the next automatically generated numeric ID.
+
+This is useful when part files have changed, been restored, deleted, or otherwise need to be rescanned.
+
+The current implementation deliberately recalculates index information from the actual part-file contents rather than trusting old index metadata.
 
 ---
 
-# 20. Part Files
+# 16. Transactions
 
-The database splits data into part files.
+Transactions let you collect several database operations and commit them together.
 
-Example:
-
-```text
-users/
-├── index.json
-├── part-0001.json
-├── part-0002.json
-├── part-0003.json
-└── part-0004.json
-```
-
-The default maximum part size is:
+Start one:
 
 ```js
-128 * 1024
+const transaction = users.startTransaction();
 ```
 
-or:
-
-```text
-128 KB
-```
-
-You can customize it:
+Add operations:
 
 ```js
-const users = db.collection({
-  name: 'users',
-  maxPartSize: 1024 * 1024
+transaction.insert({
+  username: 'alice',
+  age: 25
+});
+
+transaction.updateOne(
+  {
+    username: 'bob'
+  },
+  {
+    $set: {
+      active: true
+    }
+  }
+);
+
+transaction.deleteOne({
+  username: 'old-user'
 });
 ```
 
-This sets the target part size to approximately 1 MB.
-
----
-
-# 21. Atomic Writes
-
-The implementation writes data to a temporary file before replacing the target file.
-
-Conceptually:
-
-```text
-part-0001.json
-       ↑
-       │
-part-0001.json.tmp
-       │
-       └── rename
-```
-
-Example internal behavior:
+Commit:
 
 ```js
-const tmp = filePath + '.tmp';
-
-fs.writeFileSync(tmp, content, 'utf8');
-fs.renameSync(tmp, filePath);
+await transaction.commit();
 ```
 
-The asynchronous version follows the same approach with Promise-based filesystem operations.
-
-This reduces the chance of leaving a partially written JSON file if a write is interrupted.
-
----
-
-# 22. Aggregation
-
-`aggregate()` accepts a pipeline.
-
-Basic example:
+## Transaction insert
 
 ```js
-const result = users.aggregate([
+transaction.insert({
+  username: 'new-user'
+});
+```
+
+## Transaction insert many
+
+```js
+transaction.insertMany([
   {
-    $match: {
-      active: true
-    }
+    username: 'user1'
   },
   {
-    $sort: {
-      age: -1
-    }
-  },
-  {
-    $limit: 10
+    username: 'user2'
   }
 ]);
 ```
 
+## Transaction update
+
+```js
+transaction.updateOne(
+  {
+    username: 'alice'
+  },
+  {
+    $inc: {
+      loginCount: 1
+    }
+  }
+);
+```
+
+## Transaction delete
+
+```js
+transaction.deleteMany({
+  status: 'temporary'
+});
+```
+
+## Rollback
+
+Discard queued operations:
+
+```js
+await transaction.rollback();
+```
+
+Rollback clears the pending transaction operations without committing them.
+
 ---
 
-## `$match`
+# 17. Aggregation
+
+Collections provide an `aggregate()` method with a MongoDB-style pipeline.
+
+Example:
 
 ```js
 const result = users.aggregate([
@@ -1226,16 +1429,46 @@ const result = users.aggregate([
         $gte: 18
       }
     }
+  },
+  {
+    $sort: {
+      age: 1
+    }
+  },
+  {
+    $limit: 10
   }
 ]);
 ```
 
----
+Supported pipeline stages in the implementation include:
+
+```text
+$match
+$sort
+$limit
+$skip
+$project
+$group
+$count
+```
+
+## `$match`
+
+```js
+users.aggregate([
+  {
+    $match: {
+      active: true
+    }
+  }
+]);
+```
 
 ## `$sort`
 
 ```js
-const result = users.aggregate([
+users.aggregate([
   {
     $sort: {
       age: -1
@@ -1244,382 +1477,139 @@ const result = users.aggregate([
 ]);
 ```
 
----
-
 ## `$limit`
 
 ```js
-const result = users.aggregate([
+users.aggregate([
   {
-    $limit: 5
+    $limit: 10
   }
 ]);
 ```
-
----
 
 ## `$skip`
 
 ```js
-const result = users.aggregate([
+users.aggregate([
   {
-    $skip: 10
+    $skip: 20
   }
 ]);
 ```
 
----
-
 ## `$project`
 
 ```js
-const result = users.aggregate([
+users.aggregate([
   {
     $project: {
-      name: 1,
+      username: 1,
       age: 1
     }
   }
 ]);
 ```
 
----
-
-# 23. Aggregation `$group`
-
-Suppose the collection contains:
-
-```js
-[
-  { name: 'A', department: 'IT', salary: 1000 },
-  { name: 'B', department: 'IT', salary: 1500 },
-  { name: 'C', department: 'HR', salary: 1200 }
-]
-```
-
-Group by department:
+## `$count`
 
 ```js
 const result = users.aggregate([
   {
-    $group: {
-      _id: '$department',
-      totalSalary: {
-        $sum: '$salary'
-      }
-    }
+    $count: 'total'
   }
 ]);
 ```
 
-Conceptually:
+Example result:
+
+```js
+[
+  {
+    total: 3500
+  }
+]
+```
+
+## `$group`
+
+Grouping supports aggregation expressions including:
 
 ```text
-IT → 2500
-HR → 1200
-```
-
----
-
-# 24. `$sum`
-
-Count documents per group:
-
-```js
-const result = users.aggregate([
-  {
-    $group: {
-      _id: '$department',
-      total: {
-        $sum: 1
-      }
-    }
-  }
-]);
-```
-
-Sum a field:
-
-```js
-const result = users.aggregate([
-  {
-    $group: {
-      _id: '$department',
-      totalSalary: {
-        $sum: '$salary'
-      }
-    }
-  }
-]);
-```
-
----
-
-# 25. `$avg`
-
-```js
-const result = users.aggregate([
-  {
-    $group: {
-      _id: '$department',
-      averageSalary: {
-        $avg: '$salary'
-      }
-    }
-  }
-]);
-```
-
-The implementation calculates averages using an internal running sum and count.
-
----
-
-# 26. `$min` and `$max`
-
-```js
-const result = users.aggregate([
-  {
-    $group: {
-      _id: '$department',
-      lowestSalary: {
-        $min: '$salary'
-      },
-      highestSalary: {
-        $max: '$salary'
-      }
-    }
-  }
-]);
-```
-
----
-
-# 27. `$push`
-
-Collect values into arrays:
-
-```js
-const result = users.aggregate([
-  {
-    $group: {
-      _id: '$department',
-      employees: {
-        $push: '$name'
-      }
-    }
-  }
-]);
-```
-
-Possible result:
-
-```js
-[
-  {
-    _id: 'IT',
-    employees: ['A', 'B']
-  },
-  {
-    _id: 'HR',
-    employees: ['C']
-  }
-]
-```
-
----
-
-# 28. `$count`
-
-```js
-const result = users.aggregate([
-  {
-    $count: 'totalUsers'
-  }
-]);
-
-console.log(result);
+$sum
+$avg
+$min
+$max
+$push
 ```
 
 Example:
 
 ```js
-[
-  {
-    totalUsers: 42
-  }
-]
-```
-
----
-
-# 29. Complete Aggregation Example
-
-```js
 const result = users.aggregate([
   {
-    $match: {
-      active: true
-    }
-  },
-  {
     $group: {
-      _id: '$department',
-      employees: {
+      _id: '$age',
+      count: {
         $sum: 1
-      },
-      averageAge: {
-        $avg: '$age'
-      },
-      oldest: {
-        $max: '$age'
-      },
-      youngest: {
-        $min: '$age'
       }
-    }
-  },
-  {
-    $sort: {
-      employees: -1
     }
   }
 ]);
-
-console.log(result);
-```
-
-This combines filtering, grouping, aggregation, and sorting.
-
----
-
-# 30. Transactions
-
-Create a transaction:
-
-```js
-const transaction = users.startTransaction();
-```
-
-Queue operations:
-
-```js
-transaction.insert({
-  name: 'Alice',
-  balance: 100
-});
-
-transaction.updateOne(
-  { name: 'Bob' },
-  {
-    $inc: {
-      balance: -50
-    }
-  }
-);
-```
-
-Commit:
-
-```js
-await transaction.commit();
-```
-
-Rollback the queued operations before commit:
-
-```js
-await transaction.rollback();
 ```
 
 ---
 
-## Transaction example
+# 18. Importing Data
+
+Collections provide:
 
 ```js
-async function createUser() {
-  const transaction = users.startTransaction();
-
-  transaction.insert({
-    name: 'Alice',
-    balance: 100
-  });
-
-  transaction.insert({
-    name: 'Bob',
-    balance: 200
-  });
-
-  const success = await transaction.commit();
-
-  if (success) {
-    console.log('Transaction committed');
-  }
-}
+users.import(filePath);
 ```
 
-### Important transaction behavior
+The input file must contain JSON.
 
-The current implementation queues operations and executes them sequentially during `commit()`.
+The imported value can be:
 
-`rollback()` clears operations that have not been committed.
-
-The current implementation does **not** implement a full snapshot-based rollback of already-written files if an operation fails halfway through commit. Therefore, applications requiring strict database-style atomic transactions should not assume that `commit()` provides full crash-safe all-or-nothing semantics. This follows directly from the current `Transaction.commit()` implementation, which executes the queued collection operations one by one.
-
----
-
-# 31. Importing JSON
-
-Suppose `users.json` contains:
-
-```json
+```js
 [
   {
-    "name": "Alice",
-    "age": 20
+    username: 'alice'
   },
   {
-    "name": "Bob",
-    "age": 25
+    username: 'bob'
   }
 ]
 ```
 
-Import it:
+or an object containing data/documents:
 
 ```js
-const success = users.import('./users.json');
-
-console.log(success);
-```
-
-The importer accepts either a JSON array or an object containing `data` or `documents`.
-
-For example:
-
-```json
 {
   "data": [
     {
-      "name": "Alice"
+      "username": "alice"
     }
   ]
 }
 ```
 
-or:
+The importer also recognizes:
 
-```json
-{
-  "documents": [
-    {
-      "name": "Alice"
-    }
-  ]
-}
+```text
+data
+documents
 ```
 
----
+as data containers.
 
-# 32. Clear Before Import
+## Import asynchronously
+
+```js
+await users.importAsync('./users.json');
+```
+
+## Clear before importing
 
 ```js
 users.import('./users.json', {
@@ -1627,1061 +1617,841 @@ users.import('./users.json', {
 });
 ```
 
-This removes existing part files, recreates the index, and then inserts the imported documents.
+The `clear` option removes existing part files before importing the new documents.
 
 ---
 
-# 33. Async Import
+# 19. Backups
+
+The database can create a complete filesystem backup.
+
+## `backup()`
 
 ```js
-const success = await users.importAsync(
-  './users.json',
+const backupPath = db.backup('./backups');
+
+console.log(backupPath);
+```
+
+The backup is created under the supplied backup root.
+
+## `backupAsync()`
+
+```js
+const backupPath = await db.backupAsync('./backups');
+```
+
+The backup operation copies the database directory recursively.
+
+Example:
+
+```text
+backups/
+└── backup-YYYY-MM-DDTHH-MM-SS-...
+    ├── users/
+    │   ├── index.json
+    │   └── part-0001.json
+    └── ...
+```
+
+The generated backup directory name includes a timestamp.
+
+---
+
+# 20. Events
+
+Both the database and collections use Node.js `EventEmitter`.
+
+You can listen to events with:
+
+```js
+users.on('insert', (event) => {
+  console.log('Inserted:', event.document);
+});
+```
+
+## Insert
+
+```js
+users.on('insert', (event) => {
+  console.log('Inserted document:', event.document);
+});
+```
+
+## Update
+
+```js
+users.on('update', (event) => {
+  console.log('Updated:', event.count);
+});
+```
+
+## Delete
+
+```js
+users.on('delete', (event) => {
+  console.log('Deleted:', event.count);
+});
+```
+
+## Save
+
+```js
+users.on('save', () => {
+  console.log('Collection saved');
+});
+```
+
+## Index rebuilt
+
+```js
+users.on('index-rebuilt', (event) => {
+  console.log('Index rebuilt:', event.collection);
+});
+```
+
+## Import
+
+```js
+users.on('import', (event) => {
+  console.log('Imported:', event.count);
+});
+```
+
+## Transaction commit
+
+```js
+users.on('transactionCommit', (event) => {
+  console.log('Transaction committed:', event.collection);
+});
+```
+
+## Transaction rollback
+
+```js
+users.on('transactionRollback', (event) => {
+  console.log('Transaction rolled back:', event.collection);
+});
+```
+
+## Database events
+
+The database also receives collection events:
+
+```js
+db.on('insert', (event) => {
+  console.log('Database insert:', event.document);
+});
+```
+
+This can be useful for application-level logging or monitoring.
+
+---
+
+# 21. Error Handling and Recovery
+
+One of the main goals of `file-json-db` is resilience.
+
+The database handles file operations internally and attempts to avoid bringing down the Node.js process because of a bad part file.
+
+## Corrupted part files
+
+When a part file contains invalid JSON, the database does not simply let `JSON.parse()` crash the application.
+
+With:
+
+```js
+errorLevel: 'debug'
+```
+
+the database attempts to:
+
+1. Detect the parsing failure.
+2. Create a `crash/` directory.
+3. Copy the problematic part file into it.
+4. Emit an error.
+5. Return an empty result for that part.
+
+Example collection:
+
+```text
+users/
+├── index.json
+├── part-0001.json
+├── part-0002.json
+└── crash/
+    └── part-0002-....json
+```
+
+With:
+
+```js
+errorLevel: 'ignore'
+```
+
+the corrupted part is silently skipped.
+
+## Listening for errors
+
+```js
+users.on('error', (error) => {
+  console.error('Database error:', error.message);
+});
+```
+
+Or:
+
+```js
+db.on('error', (error) => {
+  console.error('Database error:', error.message);
+});
+```
+
+---
+
+# 22. Part Files and Storage
+
+A collection does not have to store everything in one enormous JSON file.
+
+Instead, documents are stored in parts:
+
+```text
+users/
+├── index.json
+├── part-0001.json
+├── part-0002.json
+├── part-0003.json
+└── ...
+```
+
+The database tracks part metadata in the index.
+
+Each part keeps information such as:
+
+```text
+count
+size
+```
+
+When inserting a document, the database looks for a part that still satisfies the configured size and record limits.
+
+If no suitable part exists, a new part is created.
+
+---
+
+## Atomic Writes
+
+The database uses temporary files before replacing the destination.
+
+Conceptually:
+
+```text
+Write temporary file
+       ↓
+Try rename
+       ↓
+Success
+       │
+       └── failure → retry
+```
+
+The implementation retries the rename operation several times.
+
+This reduces the chance of leaving a partially written destination file during a write.
+
+---
+
+## Asynchronous Write Queue
+
+Asynchronous collection writes are protected by an internal lock/queue.
+
+For example:
+
+```js
+await Promise.all([
+  users.insertAsync({ username: 'a' }),
+  users.insertAsync({ username: 'b' }),
+  users.insertAsync({ username: 'c' })
+]);
+```
+
+The operations are placed through the collection's internal queue so that write operations do not modify the same collection state simultaneously.
+
+This is particularly important when an application starts multiple asynchronous writes at once.
+
+---
+
+# 23. Real-World Examples
+
+## Example A – Simple user database
+
+```js
+const { JSONDB } = require('file-json-db');
+
+const db = new JSONDB('./data');
+
+const users = db.collection({
+  name: 'users',
+  autoId: true,
+  indexes: ['username', 'email']
+});
+
+users.insert({
+  username: 'alice',
+  email: 'alice@example.com',
+  age: 25
+});
+
+const user = users.findOne({
+  username: 'alice'
+});
+
+console.log(user);
+```
+
+---
+
+## Example B – Express API database
+
+```js
+const express = require('express');
+const { JSONDB } = require('file-json-db');
+
+const app = express();
+
+app.use(express.json());
+
+const db = new JSONDB('./data');
+
+const users = db.collection({
+  name: 'users',
+  autoId: true,
+  indexes: ['username', 'email']
+});
+
+app.post('/users', async (req, res) => {
+  try {
+    const user = await users.insertAsync(req.body);
+
+    res.status(201).json(user);
+  } catch (error) {
+    res.status(500).json({
+      error: error.message
+    });
+  }
+});
+
+app.get('/users/:username', (req, res) => {
+  const user = users.findOne({
+    username: req.params.username
+  });
+
+  if (!user) {
+    return res.status(404).json({
+      error: 'User not found'
+    });
+  }
+
+  res.json(user);
+});
+
+app.listen(3000, () => {
+  console.log('Server running on port 3000');
+});
+```
+
+---
+
+## Example C – Counter
+
+```js
+const { JSONDB } = require('file-json-db');
+
+const db = new JSONDB('./data');
+
+const stats = db.collection({
+  name: 'stats',
+  indexes: ['name']
+});
+
+stats.insert({
+  name: 'requests',
+  count: 0
+});
+
+await stats.updateOneAsync(
   {
-    clear: true
+    name: 'requests'
+  },
+  {
+    $inc: {
+      count: 1
+    }
   }
 );
 ```
 
 ---
 
-# 34. Backups
-
-Create a backup:
+## Example D – Pagination
 
 ```js
-const backupPath = db.backup('./backups');
-
-console.log('Backup:', backupPath);
-```
-
-A timestamped directory is created.
-
-Example:
-
-```text
-backups/
-└── backup-2026-09-20T12-30-00-000Z/
-    ├── users/
-    │   ├── index.json
-    │   └── part-0001.json
-    └── products/
-        ├── index.json
-        └── part-0001.json
-```
-
-The backup implementation recursively copies the database directory into a timestamped backup directory.
-
----
-
-# 35. Async Backup
-
-```js
-const backupPath = await db.backupAsync('./backups');
-
-console.log(backupPath);
-```
-
-The current async backup method delegates to the existing backup implementation.
-
----
-
-# 36. Listing Collections
-
-```js
-const collections = db.listCollections();
-
-console.log(collections);
-```
-
-Example:
-
-```js
-[
-  'users',
-  'products',
-  'orders'
-]
-```
-
----
-
-# 37. Dropping a Collection
-
-```js
-const success = db.dropCollection('users');
-
-console.log(success);
-```
-
-This removes the collection directory recursively and removes the collection from the in-memory database registry.
-
----
-
-# 38. Unloading a Collection
-
-Unload without deleting its files:
-
-```js
-const success = db.unloadCollection('users');
-
-console.log(success);
-```
-
-The collection object is removed from memory, but its stored files remain on disk.
-
-If you later call:
-
-```js
-const users = db.collection('users');
-```
-
-the collection can be loaded again.
-
----
-
-# 39. Building a User Database
-
-A complete example:
-
-```js
-const { JSONDB } = require('file-json-db');
-
-const db = new JSONDB('./database');
-
-const users = db.collection({
-  name: 'users',
-  autoId: true,
-  idType: 'uuid',
-  indexes: [
-    'email',
-    'username'
-  ]
-});
-
-users.insertMany([
-  {
-    username: 'alice',
-    email: 'alice@example.com',
-    age: 20,
-    role: 'user',
-    active: true
-  },
-  {
-    username: 'bob',
-    email: 'bob@example.com',
-    age: 25,
-    role: 'admin',
-    active: true
-  }
-]);
-
-const admin = users.findOne({
-  role: 'admin'
-});
-
-console.log(admin);
-```
-
----
-
-# 40. Pagination API Example
-
-This is useful for REST APIs.
-
-```js
-function paginate(collection, page = 1, limit = 20) {
+function getUsers(page = 1, limit = 20) {
   const skip = (page - 1) * limit;
 
-  return collection
-    .find({})
+  return users.find({})
+    .sort({
+      _id: 1
+    })
     .skip(skip)
     .limit(limit)
     .toArray();
 }
 ```
 
-Express example:
+---
+
+## Example E – Search
 
 ```js
-app.get('/users', (req, res) => {
-  const page = Number(req.query.page) || 1;
-  const limit = Number(req.query.limit) || 20;
-
-  const users = db
-    .collection('users')
-    .find({})
-    .skip((page - 1) * limit)
-    .limit(limit)
-    .toArray();
-
-  res.json(users);
-});
+function searchUsers(name) {
+  return users.find({
+    fullname: {
+      $regex: name,
+      $options: 'i'
+    }
+  }).toArray();
+}
 ```
 
 ---
 
-# 41. Simple Authentication Database
-
-For application accounts:
+## Example F – Audit-style collection
 
 ```js
-const accounts = db.collection({
-  name: 'accounts',
-  autoId: true,
-  idType: 'uuid',
-  indexes: ['email']
+const logs = db.collection({
+  name: 'logs',
+  maxRecords: 5000,
+  maxPartSize: 1024 * 1024
 });
-```
 
-Insert:
-
-```js
-accounts.insert({
-  email: 'user@example.com',
-  passwordHash: '...',
-  createdAt: Date.now(),
-  active: true
-});
-```
-
-Find:
-
-```js
-const account = accounts.findOne({
-  email: 'user@example.com'
-});
-```
-
-> Store password hashes rather than plaintext passwords. `file-json-db` is a storage layer; password hashing should be handled separately by an appropriate cryptographic library.
-
----
-
-# 42. File Metadata Database
-
-A file manager can store metadata:
-
-```js
-const files = db.collection({
-  name: 'files',
-  autoId: true,
-  indexes: [
-    'name',
-    'mime',
-    'ownerId'
-  ]
-});
-```
-
-Insert:
-
-```js
-files.insert({
-  name: 'photo.jpg',
-  mime: 'image/jpeg',
-  size: 2400000,
-  ownerId: 'user-123',
-  path: '/uploads/photo.jpg',
-  createdAt: Date.now()
-});
-```
-
-Find images:
-
-```js
-const images = files.find({
-  mime: {
-    $regex: '^image/'
-  }
-}).toArray();
-```
-
-Find a user's files:
-
-```js
-const userFiles = files.find({
-  ownerId: 'user-123'
-}).toArray();
-```
-
----
-
-# 43. Product Database
-
-```js
-const products = db.collection({
-  name: 'products',
-  autoId: true,
-  indexes: [
-    'sku',
-    'category'
-  ]
-});
-```
-
-Insert:
-
-```js
-products.insertMany([
+await logs.insertManyAsync([
   {
-    sku: 'PHONE-001',
-    name: 'Example Phone',
-    category: 'phones',
-    price: 500,
-    stock: 20
+    action: 'login',
+    userId: 10
   },
   {
-    sku: 'LAPTOP-001',
-    name: 'Example Laptop',
-    category: 'computers',
-    price: 1200,
-    stock: 8
+    action: 'logout',
+    userId: 10
   }
 ]);
 ```
 
-Find affordable products:
+The record limit can help keep each part bounded by the configured number of documents.
+
+---
+
+## Example G – Transaction
 
 ```js
-const productsUnder1000 = products.find({
-  price: {
-    $lt: 1000
-  }
-}).toArray();
-```
+const transaction = users.startTransaction();
 
-Update stock:
+transaction.insert({
+  username: 'new-user'
+});
 
-```js
-products.updateOne(
+transaction.updateOne(
   {
-    sku: 'PHONE-001'
+    username: 'alice'
   },
   {
-    $inc: {
-      stock: -1
+    $set: {
+      active: true
     }
   }
 );
+
+await transaction.commit();
 ```
 
 ---
 
-# 44. Xender-Lite-Style Local Application Example
+## Example H – Aggregation
 
-`file-json-db` can also work well as a local application data store.
+Calculate the number of users in each age group:
+
+```js
+const result = users.aggregate([
+  {
+    $group: {
+      _id: '$age',
+      total: {
+        $sum: 1
+      }
+    }
+  },
+  {
+    $sort: {
+      total: -1
+    }
+  }
+]);
+
+console.log(result);
+```
+
+---
+
+# 24. Important Notes & Best Practices
+
+### 1. Use indexes for repeated exact lookups
+
+If your application frequently searches:
+
+```js
+users.findOne({
+  username: 'alice'
+});
+```
+
+consider configuring:
+
+```js
+indexes: ['username']
+```
+
+---
+
+### 2. Do not index every field automatically
+
+Indexes consume memory and add index-maintenance work when documents are inserted, updated, or deleted.
+
+Choose fields that your application actually searches frequently.
+
+---
+
+### 3. Use async methods for application writes
+
+For normal application code, prefer:
+
+```js
+insertAsync()
+insertManyAsync()
+updateOneAsync()
+updateManyAsync()
+deleteOneAsync()
+deleteManyAsync()
+updateFuncAsync()
+importAsync()
+backupAsync()
+```
+
+This keeps the application code asynchronous while using the database's internal write queue.
+
+---
+
+### 4. Use `insertManyAsync()` for bulk loading
+
+If you already have many documents:
+
+```js
+await users.insertManyAsync(documents);
+```
+
+is more appropriate than manually awaiting thousands of individual inserts.
+
+---
+
+### 5. Use `maxPartSize` and `maxRecords` deliberately
+
+Part files can be controlled by:
+
+```js
+maxPartSize
+maxRecords
+```
 
 For example:
 
 ```js
-const db = new JSONDB('./data');
-
-const transfers = db.collection({
-  name: 'transfers',
-  autoId: true,
-  indexes: [
-    'deviceId',
-    'status'
-  ]
+const logs = db.collection({
+  name: 'logs',
+  maxPartSize: 1024 * 1024,
+  maxRecords: 5000
 });
-```
-
-Store transfer history:
-
-```js
-transfers.insert({
-  deviceId: 'device-001',
-  fileName: 'video.mp4',
-  size: 10485760,
-  status: 'completed',
-  createdAt: Date.now()
-});
-```
-
-Find completed transfers:
-
-```js
-const completed = transfers.find({
-  status: 'completed'
-}).toArray();
-```
-
-Find transfers from one device:
-
-```js
-const deviceTransfers = transfers.find({
-  deviceId: 'device-001'
-}).toArray();
-```
-
-Count completed transfers:
-
-```js
-const total = transfers
-  .find({
-    status: 'completed'
-  })
-  .count();
 ```
 
 ---
 
-# 45. Event-Driven Application Example
+### 6. Use `errorLevel: 'debug'` while developing
+
+The default mode:
 
 ```js
-const db = new JSONDB('./database');
-
-const messages = db.collection({
-  name: 'messages',
-  autoId: true
-});
-
-messages.on('insert', ({ document }) => {
-  console.log('New message:', document);
-});
-
-messages.on('delete', ({ count }) => {
-  console.log('Deleted messages:', count);
-});
-
-messages.insert({
-  from: 'alice',
-  text: 'Hello'
-});
+errorLevel: 'debug'
 ```
 
-This can be useful when connecting the database to:
+provides useful information when a part cannot be parsed.
 
-- WebSocket servers
-- Socket.IO
-- Express
-- local desktop applications
-- file transfer systems
-- notification systems
+For applications where silent skipping is specifically desired:
+
+```js
+errorLevel: 'ignore'
+```
+
+can be selected.
 
 ---
 
-# 46. Combining Queries With Sorting and Pagination
+### 7. Rebuild indexes after manual filesystem changes
+
+If you manually restore, modify, remove, or replace database part files, use:
 
 ```js
-const result = users
-  .find({
-    active: true,
-    age: {
-      $gte: 18
-    }
-  })
-  .sort({
-    createdAt: -1
-  })
-  .skip(20)
-  .limit(10)
-  .project({
-    name: 1,
-    email: 1,
-    createdAt: 1
-  })
-  .toArray();
+users.rebuildIndexes();
 ```
 
-This creates a useful pipeline:
-
-```text
-Filter
-  ↓
-Sort
-  ↓
-Skip
-  ↓
-Limit
-  ↓
-Project
-  ↓
-Array
-```
+The rebuild scans the actual part files.
 
 ---
 
-# 47. Full Application Example
+### 8. Keep backups
+
+For important data:
+
+```js
+await db.backupAsync('./backups');
+```
+
+A backup is a filesystem copy of the database.
+
+---
+
+### 9. Remember that file access is still involved
+
+Although the database keeps an index in memory, the underlying documents are stored on disk.
+
+The database is therefore useful when you want simple persistent storage without running another database server.
+
+---
+
+### 10. Avoid storing unnecessary huge documents
+
+A JSON document database is convenient, but putting very large binary data directly into JSON documents is generally not a good storage design.
+
+For large files, store the file separately and keep its path or metadata in the database.
+
+---
+
+### 11. Treat benchmark results as measurements
+
+If you benchmark `file-json-db`, test with a consistent:
+
+- dataset size
+- Node.js version
+- machine
+- storage device
+- number of operations
+- index configuration
+
+This makes results easier to compare.
+
+---
+
+# 25. Quick Reference (Cheat Sheet)
 
 ```js
 const { JSONDB } = require('file-json-db');
 
-const db = new JSONDB('./database');
-
-db.on('error', error => {
-  console.error('[DATABASE ERROR]', error);
-});
+const db = new JSONDB('./data');
 
 const users = db.collection({
   name: 'users',
   autoId: true,
-  idType: 'uuid',
-  indexes: [
-    'email',
-    'role'
-  ],
+  idType: 'auto',
+  indexes: ['username', 'email'],
   pretty: true,
-  maxPartSize: 128 * 1024
+  maxPartSize: 256 * 1024,
+  maxRecords: 5000,
+  errorLevel: 'debug'
 });
 
-users.on('insert', ({ document }) => {
-  console.log('Inserted:', document._id);
-});
-
-users.on('update', ({ count }) => {
-  console.log('Updated:', count);
-});
-
-users.on('delete', ({ count }) => {
-  console.log('Deleted:', count);
-});
-
-async function main() {
-  await users.insertAsync({
-    name: 'Alice',
-    email: 'alice@example.com',
-    role: 'admin',
-    points: 10,
-    profile: {
-      city: 'Abuja'
-    }
-  });
-
-  await users.updateOneAsync(
-    {
-      email: 'alice@example.com'
-    },
-    {
-      $inc: {
-        points: 5
-      },
-      $set: {
-        'profile.country': 'Nigeria'
-      }
-    }
-  );
-
-  const result = users
-    .find({
-      role: 'admin'
-    })
-    .sort({
-      points: -1
-    })
-    .limit(10)
-    .project({
-      name: 1,
-      points: 1,
-      'profile.city': 1
-    })
-    .toArray();
-
-  console.log(result);
-}
-
-main().catch(console.error);
-```
-
----
-
-# 48. API Reference
-
-## `JSONDB`
-
-### Constructor
-
-```js
-new JSONDB(dbPath)
-```
-
-Default:
-
-```js
-new JSONDB('./database')
-```
-
-### Methods
-
-```js
-db.collection(name)
-db.collection(options)
-
-db.createCollection(name)
-db.createCollection(options)
-
-db.listCollections()
-
-db.dropCollection(name)
-
-db.unloadCollection(name)
-
-db.backup(backupRoot)
-
-await db.backupAsync(backupRoot)
-```
-
----
-
-# 49. `Collection`
-
-## Creation
-
-```js
-db.collection('users');
-```
-
-or:
-
-```js
-db.collection({
-  name: 'users',
-  autoId: true,
-  idField: '_id',
-  idType: 'uuid',
-  indexes: ['email']
-});
-```
-
-## CRUD
-
-```js
-collection.insert(document)
-
-await collection.insertAsync(document)
-
-collection.insertMany(documents)
-
-await collection.insertManyAsync(documents)
-
-collection.find(query)
-
-collection.findOne(query)
-
-collection.updateOne(filter, update)
-
-collection.updateMany(filter, update)
-
-await collection.updateOneAsync(filter, update)
-
-await collection.updateManyAsync(filter, update)
-
-collection.deleteOne(filter)
-
-collection.deleteMany(filter)
-
-await collection.deleteOneAsync(filter)
-
-await collection.deleteManyAsync(filter)
-```
-
-## Maintenance
-
-```js
-collection.rebuildIndexes()
-
-collection.rebuildId()
-
-collection.import(filePath, options)
-
-await collection.importAsync(filePath, options)
-
-collection.startTransaction()
-
-collection.aggregate(pipeline)
-```
-
----
-
-# 50. `QueryBuilder`
-
-```js
-collection.find(query)
-```
-
-returns a query builder.
-
-Available methods:
-
-```js
-query.limit(number)
-
-query.skip(number)
-
-query.sort(object)
-
-query.project(object)
-
-query.toArray()
-
-query.first()
-
-query.count()
-```
-
-Example:
-
-```js
-const result = users
-  .find({
-    active: true
-  })
-  .sort({
-    age: -1
-  })
+// Insert
+users.insert({ username: 'alice' });
+await users.insertAsync({ username: 'bob' });
+
+users.insertMany([
+  { username: 'charlie' },
+  { username: 'david' }
+]);
+
+await users.insertManyAsync([
+  { username: 'eve' },
+  { username: 'frank' }
+]);
+
+// Find
+users.findOne({ username: 'alice' });
+await users.findOneAsync({ username: 'bob' });
+
+users.find({
+  age: { $gte: 18 }
+}).toArray();
+
+// Query builder
+users.find({})
+  .sort({ age: -1 })
   .skip(10)
-  .limit(10)
+  .limit(20)
   .project({
-    name: 1,
+    username: 1,
     age: 1
   })
   .toArray();
-```
 
----
+users.find({}).first();
+users.find({}).count();
 
-# 51. `Transaction`
-
-```js
-const tx = collection.startTransaction();
-```
-
-Methods:
-
-```js
-tx.insert(document)
-
-await tx.insertAsync(document)
-
-tx.insertMany(documents)
-
-await tx.insertManyAsync(documents)
-
-tx.updateOne(filter, update)
-
-await tx.updateOneAsync(filter, update)
-
-tx.updateMany(filter, update)
-
-await tx.updateManyAsync(filter, update)
-
-tx.deleteOne(filter)
-
-await tx.deleteOneAsync(filter)
-
-tx.deleteMany(filter)
-
-await tx.deleteManyAsync(filter)
-
-await tx.commit()
-
-await tx.rollback()
-```
-
----
-
-# 52. Exported Classes
-
-The package exports:
-
-```js
-const {
-  JSONDB,
-  Collection,
-  QueryBuilder,
-  Transaction
-} = require('file-json-db');
-```
-
-The package entry point exports these four classes.
-
----
-
-# 53. Recommended Project Structure
-
-A project using the database might look like:
-
-```text
-my-app/
-├── database/
-│   ├── users/
-│   │   ├── index.json
-│   │   └── part-0001.json
-│   ├── products/
-│   │   ├── index.json
-│   │   └── part-0001.json
-│   └── orders/
-│       ├── index.json
-│       └── part-0001.json
-│
-├── backups/
-│
-├── src/
-│   ├── db.js
-│   ├── users.js
-│   ├── products.js
-│   └── orders.js
-│
-├── index.js
-└── package.json
-```
-
-Example `src/db.js`:
-
-```js
-const { JSONDB } = require('file-json-db');
-
-const db = new JSONDB('./database');
-
-db.on('error', error => {
-  console.error('[DB]', error);
-});
-
-module.exports = db;
-```
-
-Then:
-
-```js
-const db = require('./db');
-
-const users = db.collection({
-  name: 'users',
-  autoId: true,
-  indexes: ['email']
-});
-
-module.exports = users;
-```
-
----
-
-# 54. Database Lifecycle
-
-A typical application lifecycle is:
-
-```text
-Application starts
-       ↓
-Create JSONDB
-       ↓
-Open/create collection
-       ↓
-Load index.json
-       ↓
-If index is invalid → rebuild
-       ↓
-Application performs CRUD
-       ↓
-Part files are updated
-       ↓
-Index is updated
-       ↓
-Events are emitted
-       ↓
-Application exits
-```
-
-This design allows the database to recover its index from the actual part files when necessary.
-
----
-
-# 55. When to Use file-json-db
-
-This project is particularly suitable for:
-
-- local Node.js applications
-- desktop applications
-- prototypes
-- small-to-medium embedded databases
-- configuration/data stores
-- local APIs
-- development tools
-- file-transfer applications
-- offline applications
-- applications where keeping data in readable JSON is useful
-
-It is **not** intended to replace a production server database for every workload.
-
-For workloads involving:
-
-- many concurrent processes
-- very large datasets
-- heavy concurrent writes
-- distributed servers
-- advanced query planning
-- replication
-- network database access
-
-a dedicated database system may be more appropriate.
-
----
-
-# 56. Important Implementation Notes
-
-## JSON is still the storage format
-
-Although the API resembles MongoDB, this is a JSON file database.
-
-Documents ultimately live inside JSON part files.
-
-## Queries are in-memory operations
-
-The database loads part files and evaluates documents using JavaScript.
-
-Complex queries can therefore require scanning many documents.
-
-## Indexes are selective
-
-Configured secondary indexes can accelerate certain simple exact-match queries, but they do not turn every query into an indexed query.
-
-For example:
-
-```js
-users.find({
-  email: 'alice@example.com'
-});
-```
-
-can use an index configured for `email`.
-
-But:
-
-```js
-users.find({
-  age: {
-    $gt: 18
-  }
-});
-```
-
-does not receive the same indexed fast path simply because `age` happens to be configured as an index.
-
-## Part size is a storage-management mechanism
-
-`maxPartSize` controls which part file is selected for new inserts based on the recorded file size. It is not a complete page-management or compaction system.
-
----
-
-# 57. Development
-
-The package declares these scripts:
-
-```bash
-npm test
-```
-
-and:
-
-```bash
-npm run example
-```
-
-The corresponding `package.json` entries are:
-
-```json
-{
-  "scripts": {
-    "test": "node test/basic.js",
-    "example": "node examples/basic.js"
-  }
-}
-```
-
----
-
-# 58. License
-
-```text
-MIT
-```
-
-feel free to use it as you want
-
----
-
-# 59. Summary
-
-`file-json-db` provides a MongoDB-inspired programming model while keeping the actual storage simple and local:
-
-```text
-MongoDB-style API
-        │
-        ▼
-    JSONDB
-        │
-        ▼
- Collections
-        │
-        ▼
- Chunked JSON files
-        │
-        ├── index.json
-        ├── part-0001.json
-        ├── part-0002.json
-        └── ...
-```
-
-The core idea is:
-
-> **Use a familiar document-database API while keeping the database embedded, readable, file-based, dependency-free, and capable of recovering its indexes from stored data.**
-
----
-
-## Minimal Example
-
-If you only remember one example, start here:
-
-```js
-const { JSONDB } = require('file-json-db');
-
-const db = new JSONDB('./database');
-
-const users = db.collection({
-  name: 'users',
-  autoId: true,
-  indexes: ['email']
-});
-
-users.insert({
-  name: 'Alice',
-  email: 'alice@example.com',
-  age: 20
-});
-
-const user = users.findOne({
-  email: 'alice@example.com'
-});
-
-console.log(user);
-
+// Update
 users.updateOne(
+  { username: 'alice' },
   {
-    email: 'alice@example.com'
-  },
-  {
-    $inc: {
-      age: 1
+    $set: {
+      age: 26
     }
   }
 );
 
-users.deleteOne({
-  email: 'alice@example.com'
+await users.updateOneAsync(
+  { username: 'bob' },
+  {
+    $inc: {
+      loginCount: 1
+    }
+  }
+);
+
+users.updateMany(
+  { active: false },
+  {
+    $set: {
+      status: 'inactive'
+    }
+  }
+);
+
+await users.updateManyAsync(
+  { active: false },
+  {
+    $set: {
+      status: 'inactive'
+    }
+  }
+);
+
+// Custom update function
+users.updateFunc(
+  { active: true },
+  (doc) => {
+    doc.updated = true;
+    return doc;
+  }
+);
+
+await users.updateFuncAsync(
+  { active: true },
+  (doc) => {
+    doc.updated = true;
+    return doc;
+  }
+);
+
+// Delete
+users.deleteOne({ username: 'alice' });
+await users.deleteOneAsync({ username: 'bob' });
+
+users.deleteMany({ active: false });
+await users.deleteManyAsync({ active: false });
+
+// Indexes
+users.rebuildIndexes();
+users.rebuildId();
+
+// Transaction
+const transaction = users.startTransaction();
+
+transaction.insert({
+  username: 'new-user'
 });
+
+transaction.updateOne(
+  { username: 'bob' },
+  {
+    $set: {
+      active: true
+    }
+  }
+);
+
+await transaction.commit();
+
+// Aggregation
+users.aggregate([
+  {
+    $match: {
+      active: true
+    }
+  },
+  {
+    $count: 'total'
+  }
+]);
+
+// Import
+users.import('./users.json');
+await users.importAsync('./users.json');
+
+// Backup
+db.backup('./backups');
+await db.backupAsync('./backups');
+
+// Database utilities
+db.listCollections();
+db.dropCollection('users');
+db.unloadCollection('users');
 ```
 
-That is the basic `file-json-db` workflow:
+---
 
-```text
-Create DB
-   ↓
-Create Collection
-   ↓
-Insert
-   ↓
-Find
-   ↓
-Update
-   ↓
-Delete
-```
+# 26. Final Words
+
+`file-json-db` is designed around a simple idea:
+
+**Keep JSON storage simple while adding the database features needed for real Node.js applications.**
+
+It provides:
+
+- Persistent JSON documents
+- Collections represented by directories
+- Chunked/part-file storage
+- In-memory indexes
+- Query operators
+- Query builders
+- Updates
+- Custom update functions
+- Deletes
+- Transactions
+- Aggregation
+- Import
+- Backups
+- Events
+- Atomic writes
+- Recovery from invalid part files
+- Configurable part size and record limits
+- Zero external runtime dependencies
+
+The project is especially useful when you want an embedded database that can live directly inside a Node.js application without requiring a separate database server.
+
+The current package release represented by these project files is **1.2.0**.
+
+Happy building with `file-json-db`!
