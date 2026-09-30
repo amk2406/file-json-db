@@ -8,6 +8,8 @@ export interface CollectionOptions {
   indexes?: string[];
   pretty?: boolean;
   maxPartSize?: number;
+  maxRecords?: number | null;
+  errorLevel?: 'debug' | 'ignore';
 }
 
 export interface ImportOptions {
