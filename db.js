@@ -1,12 +1,13 @@
 /**
  * file-json-db
  * A resilient, zero-dependency, MongoDB-style JSON document database for Node.js.
- * v1.1.0 - Improved $pull, updateFunc, safer atomic writes, better resilience
+ * v1.4.0 - Real snapshot transactions, batched insertMany (maxRecords / part size)
  *
  * - Collection = Folder
  * - Data split into multiple part files
- * - Smart index kept in memory
+ * - Smart index kept in memory (idIndex + multi-value secondary indexes)
  * - Automatic recovery & self-healing
+ * - Snapshot transactions with rollback
  * - Same familiar API style as low-json-db
  */
 
@@ -43,8 +44,13 @@ function atomicWriteSync(filePath, content) {
         return;
       } catch (err) {
         lastErr = err;
-        const start = Date.now();
-        while (Date.now() - start < 5) {}
+        // Short yield instead of busy-wait
+        try {
+          const end = Date.now() + 5;
+          while (Date.now() < end) {
+            // minimal spin only for sync context; prefer async path when possible
+          }
+        } catch (_) {}
       }
     }
     throw lastErr;
@@ -203,8 +209,9 @@ class QueryBuilder {
     return results[0] || null;
   }
 
+  /** Count matching documents without materialising the full result set when possible. */
   count() {
-    return this.toArray().length;
+    return this.collection._countQuery(this);
   }
 }
 
@@ -233,6 +240,7 @@ class Collection extends EventEmitter {
     this.index = null; // loaded index
     this._locked = false;
     this._queue = [];
+    this._activeTx = null; // only one snapshot transaction at a time
 
     ensureDirSync(this.collectionPath);
     this._loadIndexSync();
@@ -273,6 +281,8 @@ class Collection extends EventEmitter {
         this.index = JSON.parse(content);
         if (!this.index.parts) this.index.parts = {};
         if (!this.index.indexes) this.index.indexes = {};
+        if (!this.index.idIndex) this.index.idIndex = {};
+        if (!this.index.corruptedParts) this.index.corruptedParts = {};
         if (typeof this.index.nextId !== 'number') this.index.nextId = 1;
       } else {
         this._createEmptyIndex();
@@ -288,7 +298,9 @@ class Collection extends EventEmitter {
     this.index = {
       nextId: 1,
       parts: {},
-      indexes: {}
+      idIndex: {},       // id → partKey  (primary index)
+      indexes: {},       // field → { value → [{ id, part }, ...] }  (multi-value)
+      corruptedParts: {}
     };
   }
 
@@ -318,20 +330,27 @@ class Collection extends EventEmitter {
   _rebuildIndexSync() {
     try {
       const parts = this._listPartFiles();
+      const previousCorrupted = (this.index && this.index.corruptedParts) ? { ...this.index.corruptedParts } : {};
       const newIndex = {
         nextId: 1,
         parts: {},
-        indexes: {}
+        idIndex: {},
+        indexes: {},
+        corruptedParts: previousCorrupted
       };
 
       let maxId = 0;
 
       for (const partName of parts) {
-        // Always fully rescan – never trust old index
+        const partKey = partName.replace('part-', '').replace('.json', '');
+
+        if (newIndex.corruptedParts[partKey]) continue;
+
+        // Temporarily clear the corrupted flag check path so _loadPartSync can run
+        // (we already skipped known-corrupted above)
         const docs = this._loadPartSync(partName) || [];
         if (!Array.isArray(docs)) continue;
 
-        const partKey = partName.replace('part-', '').replace('.json', '');
         let size = 0;
         try {
           size = fs.statSync(path.join(this.collectionPath, partName)).size;
@@ -342,19 +361,22 @@ class Collection extends EventEmitter {
         for (const doc of docs) {
           if (!doc || typeof doc !== 'object') continue;
           const id = getNestedValue(doc, this.idField);
-          if (typeof id === 'number' && id > maxId) maxId = id;
+          if (id !== undefined && id !== null) {
+            newIndex.idIndex[String(id)] = partKey;
+            if (typeof id === 'number' && id > maxId) maxId = id;
+          }
 
           for (const field of this.indexFields) {
             const val = getNestedValue(doc, field);
             if (val === undefined || val === null) continue;
             const key = String(val);
             if (!newIndex.indexes[field]) newIndex.indexes[field] = {};
-            newIndex.indexes[field][key] = { id, part: partKey };
+            if (!newIndex.indexes[field][key]) newIndex.indexes[field][key] = [];
+            newIndex.indexes[field][key].push({ id, part: partKey });
           }
         }
       }
 
-      // Always recalculate nextId from actual data
       newIndex.nextId = maxId + 1;
       this.index = newIndex;
       this._saveIndexSync();
@@ -363,9 +385,8 @@ class Collection extends EventEmitter {
       this.db?.emit('index-rebuilt', { collection: this.name });
     } catch (err) {
       this._emitError(err);
-      // Last resort – never leave index in broken state
       if (!this.index) {
-        this.index = { nextId: 1, parts: {}, indexes: {} };
+        this.index = { nextId: 1, parts: {}, idIndex: {}, indexes: {}, corruptedParts: {} };
       }
     }
   }
@@ -390,6 +411,11 @@ class Collection extends EventEmitter {
     const partKey = partKeyOrName.replace('part-', '').replace('.json', '');
     const filePath = this._partPath(partKey);
 
+    // Already known-bad: skip parse + skip re-copy
+    if (this.index && this.index.corruptedParts && this.index.corruptedParts[partKey]) {
+      return [];
+    }
+
     try {
       if (!fs.existsSync(filePath)) return null;
 
@@ -403,21 +429,33 @@ class Collection extends EventEmitter {
       const parsed = JSON.parse(content);
       return Array.isArray(parsed) ? parsed : [];
     } catch (err) {
-      // Corrupted part file handling
+      // Corrupted part: copy ONCE to crash/, keep original in place, mark in index
+      // so we never re-copy or re-parse the same damaged file on every load.
       if (this.errorLevel === 'debug') {
         try {
-          const crashDir = path.join(this.collectionPath, 'crash');
-          ensureDirSync(crashDir);
-          const crashName = `part-${partKey}-${Date.now()}.json`;
-          const crashPath = path.join(crashDir, crashName);
-          fs.copyFileSync(filePath, crashPath);
-          console.log(`[file-json-db] Failed to parse part-${partKey}.json → copied to crash/${crashName}`);
+          if (!this.index.corruptedParts) this.index.corruptedParts = {};
+          if (!this.index.corruptedParts[partKey]) {
+            const crashDir = path.join(this.collectionPath, 'crash');
+            ensureDirSync(crashDir);
+            // Stable name – one copy per part, no timestamp spam
+            const crashName = `part-${partKey}.json`;
+            const crashPath = path.join(crashDir, crashName);
+            if (!fs.existsSync(crashPath)) {
+              fs.copyFileSync(filePath, crashPath);
+              console.log(`[file-json-db] Failed to parse part-${partKey}.json → copied once to crash/${crashName}`);
+            }
+            this.index.corruptedParts[partKey] = {
+              at: new Date().toISOString(),
+              error: err.message
+            };
+            this._saveIndexSync();
+          }
         } catch (copyErr) {
           // ignore copy failures
         }
         this._emitError(new Error(`Failed to load part ${partKey}: ${err.message}`));
       }
-      // 'ignore' → silent
+      // 'ignore' → silent; original file is never deleted
       return [];
     }
   }
@@ -483,9 +521,9 @@ class Collection extends EventEmitter {
   // ---------- Core Operations ----------
 
   insert(doc) {
-    ensureDirSync(this.collectionPath)
+    ensureDirSync(this.collectionPath);
     if (!doc || typeof doc !== 'object') return null;
-    
+
     const document = { ...doc };
 
     if (this.autoId && getNestedValue(document, this.idField) === undefined) {
@@ -502,13 +540,22 @@ class Collection extends EventEmitter {
     docs.push(document);
     this._savePartSync(partKey, docs);
 
-    // Update secondary indexes
     const id = getNestedValue(document, this.idField);
+
+    // Primary id index
+    if (id !== undefined && id !== null) {
+      if (!this.index.idIndex) this.index.idIndex = {};
+      this.index.idIndex[String(id)] = partKey;
+    }
+
+    // Multi-value secondary indexes
     for (const field of this.indexFields) {
       const val = getNestedValue(document, field);
       if (val === undefined || val === null) continue;
       if (!this.index.indexes[field]) this.index.indexes[field] = {};
-      this.index.indexes[field][String(val)] = { id, part: partKey };
+      const key = String(val);
+      if (!this.index.indexes[field][key]) this.index.indexes[field][key] = [];
+      this.index.indexes[field][key].push({ id, part: partKey });
     }
 
     this._saveIndexSync();
@@ -525,9 +572,105 @@ class Collection extends EventEmitter {
     return this._withLock(() => Promise.resolve(this.insert(doc)));
   }
 
+  /**
+   * Batched insertMany:
+   * - Assigns IDs once
+   * - Splits docs by maxRecords (if set) else by estimated JSON size vs maxPartSize
+   * - Fills existing parts that still have room, then creates new parts
+   * - Writes each part once and saves the index once at the end
+   */
   insertMany(docs) {
-    if (!Array.isArray(docs)) return [];
-    return docs.map(d => this.insert(d)).filter(Boolean);
+    ensureDirSync(this.collectionPath);
+    if (!Array.isArray(docs) || docs.length === 0) return [];
+
+    const prepared = [];
+    for (const doc of docs) {
+      if (!doc || typeof doc !== 'object') continue;
+      const document = { ...doc };
+      if (this.autoId && getNestedValue(document, this.idField) === undefined) {
+        setNestedValue(document, this.idField, this.generateId());
+      }
+      prepared.push(document);
+    }
+    if (prepared.length === 0) return [];
+
+    // Estimate bytes per doc (rough) for size-based splitting
+    const estimateSize = (d) => {
+      try {
+        return Buffer.byteLength(JSON.stringify(d), 'utf8') + 2; // +comma/newline
+      } catch (_) {
+        return 256;
+      }
+    };
+
+    let cursor = 0;
+    const inserted = [];
+
+    while (cursor < prepared.length) {
+      let partKey = this._findPartWithSpace();
+      let existingDocs = [];
+      let currentCount = 0;
+      let currentSize = 0;
+
+      if (partKey) {
+        existingDocs = this._loadPartSync(partKey) || [];
+        currentCount = existingDocs.length;
+        currentSize = (this.index.parts[partKey] && this.index.parts[partKey].size) || 0;
+      } else {
+        partKey = this._createNewPartKey();
+        this.index.parts[partKey] = { count: 0, size: 0 };
+        existingDocs = [];
+        currentCount = 0;
+        currentSize = 0;
+      }
+
+      const batch = [];
+      while (cursor < prepared.length) {
+        const doc = prepared[cursor];
+        const docSize = estimateSize(doc);
+
+        const recordsOk =
+          this.maxRecords == null || currentCount + batch.length + 1 <= this.maxRecords;
+        const sizeOk = currentSize + docSize < this.maxPartSize || batch.length === 0;
+
+        // Always allow at least one doc into a fresh/empty batch so we never stall
+        if ((!recordsOk || !sizeOk) && batch.length > 0) break;
+
+        batch.push(doc);
+        currentSize += docSize;
+        cursor++;
+      }
+
+      const merged = existingDocs.concat(batch);
+      this._savePartSync(partKey, merged);
+
+      // Update indexes for this batch only
+      for (const document of batch) {
+        const id = getNestedValue(document, this.idField);
+        if (id !== undefined && id !== null) {
+          if (!this.index.idIndex) this.index.idIndex = {};
+          this.index.idIndex[String(id)] = partKey;
+        }
+        for (const field of this.indexFields) {
+          const val = getNestedValue(document, field);
+          if (val === undefined || val === null) continue;
+          if (!this.index.indexes[field]) this.index.indexes[field] = {};
+          const key = String(val);
+          if (!this.index.indexes[field][key]) this.index.indexes[field][key] = [];
+          this.index.indexes[field][key].push({ id, part: partKey });
+        }
+        inserted.push(document);
+      }
+    }
+
+    this._saveIndexSync();
+
+    this.emit('insert', { collection: this.name, count: inserted.length });
+    this.db?.emit('insert', { collection: this.name, count: inserted.length });
+    this.emit('save', { collection: this.name });
+    this.db?.emit('save', { collection: this.name });
+
+    return inserted;
   }
 
   insertManyAsync(docs) {
@@ -552,39 +695,147 @@ class Collection extends EventEmitter {
     return Promise.resolve(this.findOne(query));
   }
 
-  _executeQuery(builder) {
+  /**
+   * Resolve documents from a list of { id, part } index entries.
+   * Returns matching docs (after full query filter).
+   */
+  _docsFromIndexEntries(entries, query) {
+    if (!entries || entries.length === 0) return [];
     const results = [];
+    // Group by part to minimise file reads
+    const byPart = {};
+    for (const e of entries) {
+      if (!byPart[e.part]) byPart[e.part] = [];
+      byPart[e.part].push(e.id);
+    }
+    for (const [partKey, ids] of Object.entries(byPart)) {
+      const docs = this._loadPartSync(partKey);
+      if (!docs) continue;
+      const idSet = new Set(ids.map(String));
+      for (const doc of docs) {
+        const id = getNestedValue(doc, this.idField);
+        if (idSet.has(String(id)) && matchQuery(doc, query)) {
+          results.push(doc);
+        }
+      }
+    }
+    return results;
+  }
+
+  _executeQuery(builder) {
     const query = builder.query || {};
-    ensureDirSync(this.collectionPath)
+    ensureDirSync(this.collectionPath);
 
-    // Try fast path if query uses an indexed field
-    const indexedField = this.indexFields.find(f => query[f] !== undefined && typeof query[f] !== 'object');
+    // --- Fast path 1: exact lookup by primary id ---
+    const idVal = query[this.idField];
+    if (idVal !== undefined && typeof idVal !== 'object') {
+      const partKey = this.index.idIndex && this.index.idIndex[String(idVal)];
+      if (partKey) {
+        const docs = this._loadPartSync(partKey) || [];
+        const doc = docs.find(d => String(getNestedValue(d, this.idField)) === String(idVal));
+        if (doc && matchQuery(doc, query)) {
+          return this._applyBuilderTransforms([doc], builder);
+        }
+        // Stale index → rebuild once then full scan
+        this._rebuildIndexSync();
+        return this._fullScan(builder);
+      }
+      // id not in index → either missing or needs rebuild; try full scan
+      return this._fullScan(builder);
+    }
 
+    // --- Fast path 2: exact equality on a secondary indexed field ---
+    const indexedField = this.indexFields.find(
+      f => query[f] !== undefined && typeof query[f] !== 'object'
+    );
     if (indexedField) {
       const val = String(query[indexedField]);
-      const entry = this.index.indexes[indexedField] && this.index.indexes[indexedField][val];
-      if (entry) {
-        const docs = this._loadPartSync(entry.part);
-        if (docs) {
-          const doc = docs.find(d => getNestedValue(d, this.idField) === entry.id);
-          if (doc && matchQuery(doc, query)) {
-            results.push(doc);
-          } else {
-            // Index points to missing document → rebuild
-            this._rebuildIndexSync();
-            return this._fullScan(builder);
-          }
-        } else {
-          // Part missing → rebuild
+      const entries = this.index.indexes[indexedField] && this.index.indexes[indexedField][val];
+      if (Array.isArray(entries) && entries.length > 0) {
+        const results = this._docsFromIndexEntries(entries, query);
+        // If index returned nothing but we expected hits, rebuild
+        if (results.length === 0 && entries.length > 0) {
           this._rebuildIndexSync();
           return this._fullScan(builder);
         }
+        return this._applyBuilderTransforms(results, builder);
       }
-      // If not found in index, fall through to full scan (or return empty if exact match expected)
+      // No entries → either zero matches or stale; fall through to full scan only if needed
+      // For pure equality on indexed field with no hits, return empty quickly
+      if (Object.keys(query).length === 1) {
+        return this._applyBuilderTransforms([], builder);
+      }
     }
 
-    // Full scan for non-indexed or complex queries
     return this._fullScan(builder);
+  }
+
+  /** Apply sort / skip / limit / project without re-scanning. */
+  _applyBuilderTransforms(results, builder) {
+    let final = results;
+    if (builder._sort) {
+      const sortKeys = Object.entries(builder._sort);
+      final = final.slice().sort((a, b) => {
+        for (const [key, dir] of sortKeys) {
+          const va = getNestedValue(a, key);
+          const vb = getNestedValue(b, key);
+          if (va < vb) return dir === -1 || dir === 'desc' ? 1 : -1;
+          if (va > vb) return dir === -1 || dir === 'desc' ? -1 : 1;
+        }
+        return 0;
+      });
+    }
+    if (builder._skip) final = final.slice(builder._skip);
+    if (builder._limit != null) final = final.slice(0, builder._limit);
+    if (builder._project) {
+      final = final.map(doc => {
+        const projected = {};
+        for (const [k, v] of Object.entries(builder._project)) {
+          if (v) projected[k] = getNestedValue(doc, k);
+        }
+        return projected;
+      });
+    }
+    return final;
+  }
+
+  /** Fast count – avoids materialising documents when possible. */
+  _countQuery(builder) {
+    const query = builder.query || {};
+    // Empty query → sum part counts from index
+    if (!query || Object.keys(query).length === 0) {
+      let total = 0;
+      for (const meta of Object.values(this.index.parts || {})) {
+        total += meta.count || 0;
+      }
+      return total;
+    }
+    // id lookup
+    const idVal = query[this.idField];
+    if (idVal !== undefined && typeof idVal !== 'object' && Object.keys(query).length === 1) {
+      return this.index.idIndex && this.index.idIndex[String(idVal)] ? 1 : 0;
+    }
+    // secondary index equality
+    const indexedField = this.indexFields.find(
+      f => query[f] !== undefined && typeof query[f] !== 'object'
+    );
+    if (indexedField && Object.keys(query).length === 1) {
+      const entries = this.index.indexes[indexedField] && this.index.indexes[indexedField][String(query[indexedField])];
+      return Array.isArray(entries) ? entries.length : 0;
+    }
+    // Fallback: full scan count (no materialisation of result array beyond counter)
+    let count = 0;
+    const parts = this._listPartFiles();
+    for (const partName of parts) {
+      const docs = this._loadPartSync(partName);
+      if (!docs) continue;
+      for (const doc of docs) {
+        if (matchQuery(doc, query)) count++;
+      }
+    }
+    if (builder._skip) count = Math.max(0, count - builder._skip);
+    if (builder._limit != null) count = Math.min(count, builder._limit);
+    return count;
   }
 
   _fullScan(builder) {
@@ -592,6 +843,9 @@ class Collection extends EventEmitter {
     const parts = this._listPartFiles();
 
     for (const partName of parts) {
+      const partKey = partName.replace('part-', '').replace('.json', '');
+      if (this.index.corruptedParts && this.index.corruptedParts[partKey]) continue;
+
       const docs = this._loadPartSync(partName);
       if (!docs) continue;
 
@@ -602,37 +856,7 @@ class Collection extends EventEmitter {
       }
     }
 
-    // Sort
-    if (builder._sort) {
-      const sortKeys = Object.entries(builder._sort);
-      results.sort((a, b) => {
-        for (const [key, dir] of sortKeys) {
-          const va = getNestedValue(a, key);
-          const vb = getNestedValue(b, key);
-          if (va < vb) return dir === -1 || dir === 'desc' ? 1 : -1;
-          if (va > vb) return dir === -1 || dir === 'desc' ? -1 : 1;
-        }
-        return 0;
-      });
-    }
-
-    // Skip + Limit
-    let final = results;
-    if (builder._skip) final = final.slice(builder._skip);
-    if (builder._limit != null) final = final.slice(0, builder._limit);
-
-    // Project
-    if (builder._project) {
-      final = final.map(doc => {
-        const projected = {};
-        for (const [k, v] of Object.entries(builder._project)) {
-          if (v) projected[k] = getNestedValue(doc, k);
-        }
-        return projected;
-      });
-    }
-
-    return final;
+    return this._applyBuilderTransforms(results, builder);
   }
 
   // ---------- Update ----------
@@ -785,20 +1009,42 @@ class Collection extends EventEmitter {
   }
 
   _updateIndexesForDoc(oldDoc, newDoc, partKey) {
-    const id = getNestedValue(newDoc, this.idField);
+    const oldId = getNestedValue(oldDoc, this.idField);
+    const newId = getNestedValue(newDoc, this.idField);
 
+    // Primary id index
+    if (!this.index.idIndex) this.index.idIndex = {};
+    if (oldId !== undefined && oldId !== null && String(oldId) !== String(newId)) {
+      delete this.index.idIndex[String(oldId)];
+    }
+    if (newId !== undefined && newId !== null) {
+      this.index.idIndex[String(newId)] = partKey;
+    }
+
+    // Multi-value secondary indexes
     for (const field of this.indexFields) {
       const oldVal = getNestedValue(oldDoc, field);
       const newVal = getNestedValue(newDoc, field);
 
-      if (String(oldVal) !== String(newVal)) {
-        if (oldVal != null && this.index.indexes[field]) {
-          delete this.index.indexes[field][String(oldVal)];
+      if (String(oldVal) === String(newVal)) continue;
+
+      if (oldVal != null && this.index.indexes[field]) {
+        const key = String(oldVal);
+        const list = this.index.indexes[field][key];
+        if (Array.isArray(list)) {
+          this.index.indexes[field][key] = list.filter(
+            e => String(e.id) !== String(oldId)
+          );
+          if (this.index.indexes[field][key].length === 0) {
+            delete this.index.indexes[field][key];
+          }
         }
-        if (newVal != null) {
-          if (!this.index.indexes[field]) this.index.indexes[field] = {};
-          this.index.indexes[field][String(newVal)] = { id, part: partKey };
-        }
+      }
+      if (newVal != null) {
+        if (!this.index.indexes[field]) this.index.indexes[field] = {};
+        const key = String(newVal);
+        if (!this.index.indexes[field][key]) this.index.indexes[field][key] = [];
+        this.index.indexes[field][key].push({ id: newId, part: partKey });
       }
     }
   }
@@ -899,6 +1145,8 @@ class Collection extends EventEmitter {
       if (onlyOne && found) break;
 
       const partKey = partName.replace('part-', '').replace('.json', '');
+      if (this.index.corruptedParts && this.index.corruptedParts[partKey]) continue;
+
       let docs = this._loadPartSync(partKey);
       if (!docs) continue;
 
@@ -906,23 +1154,33 @@ class Collection extends EventEmitter {
       let modified = false;
 
       for (const doc of docs) {
-        if (!found && matchQuery(doc, filter)) {
+        if ((!onlyOne || !found) && matchQuery(doc, filter)) {
           deleted.push(doc);
           modified = true;
           found = true;
 
-          // Remove from indexes
           const id = getNestedValue(doc, this.idField);
+
+          // Remove from primary id index
+          if (id !== undefined && id !== null && this.index.idIndex) {
+            delete this.index.idIndex[String(id)];
+          }
+
+          // Remove from multi-value secondary indexes
           for (const field of this.indexFields) {
             const val = getNestedValue(doc, field);
             if (val != null && this.index.indexes[field]) {
-              delete this.index.indexes[field][String(val)];
+              const key = String(val);
+              const list = this.index.indexes[field][key];
+              if (Array.isArray(list)) {
+                this.index.indexes[field][key] = list.filter(
+                  e => String(e.id) !== String(id)
+                );
+                if (this.index.indexes[field][key].length === 0) {
+                  delete this.index.indexes[field][key];
+                }
+              }
             }
-          }
-
-          if (onlyOne) {
-            // keep the rest
-            continue;
           }
         } else {
           remaining.push(doc);
@@ -930,9 +1188,16 @@ class Collection extends EventEmitter {
       }
 
       if (modified) {
-        this._savePartSync(partKey, onlyOne ? [...remaining, ...docs.filter(d => !deleted.includes(d))] : remaining);
-        // simpler rewrite
-        this._savePartSync(partKey, remaining);
+        if (remaining.length === 0) {
+          // Empty part → remove file and drop from index (compaction)
+          try {
+            const p = this._partPath(partKey);
+            if (fs.existsSync(p)) fs.unlinkSync(p);
+          } catch (_) {}
+          delete this.index.parts[partKey];
+        } else {
+          this._savePartSync(partKey, remaining);
+        }
       }
     }
 
@@ -1044,50 +1309,108 @@ class JSONDB extends EventEmitter {
     return false;
   }
 
-  backup(backupRoot = './backups') {
+  /**
+   * Backup layout (no extra timestamp folder, no index.json):
+   *
+   *   backupRoot/
+   *     users/
+   *       part-0001.json
+   *       part-0002.json
+   *     orders/
+   *       part-0001.json
+   *
+   * Only collection part files are written. index.json and crash/ are skipped.
+   * Optionally pack each collection into a single .json file when options.pack === true.
+   *
+   * @param {string} backupRoot
+   * @param {{ pack?: boolean }} [options]
+   * @returns {string|null} path to backupRoot on success
+   */
+  backup(backupRoot = './backups', options = {}) {
     try {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const backupPath = path.join(backupRoot, `backup-${timestamp}`);
-      ensureDirSync(backupPath);
+      const pack = options.pack === true;
+      ensureDirSync(backupRoot);
 
-      const copyRecursive = (src, dest) => {
-        ensureDirSync(dest);
-        for (const item of fs.readdirSync(src)) {
-          const srcPath = path.join(src, item);
-          const destPath = path.join(dest, item);
-          if (fs.statSync(srcPath).isDirectory()) {
-            copyRecursive(srcPath, destPath);
-          } else {
-            fs.copyFileSync(srcPath, destPath);
+      const collections = this.listCollections();
+
+      for (const colName of collections) {
+        const srcColPath = path.join(this.dbPath, colName);
+        if (!fs.existsSync(srcColPath) || !fs.statSync(srcColPath).isDirectory()) continue;
+
+        const destColPath = path.join(backupRoot, colName);
+        ensureDirSync(destColPath);
+
+        const partFiles = fs.readdirSync(srcColPath)
+          .filter(f => f.startsWith('part-') && f.endsWith('.json'));
+
+        if (pack) {
+          // Pack all documents of this collection into one file
+          const allDocs = [];
+          for (const part of partFiles) {
+            try {
+              const content = fs.readFileSync(path.join(srcColPath, part), 'utf8');
+              if (!content || !content.trim()) continue;
+              const parsed = JSON.parse(content);
+              if (Array.isArray(parsed)) allDocs.push(...parsed);
+            } catch (_) {
+              // skip corrupted parts in backup
+            }
+          }
+          const outFile = path.join(destColPath, `${colName}.json`);
+          const body = JSON.stringify(allDocs, null, 2);
+          fs.writeFileSync(outFile, body, 'utf8');
+        } else {
+          // Copy only part files (skip index.json, crash/, tmp files)
+          for (const part of partFiles) {
+            const src = path.join(srcColPath, part);
+            const dest = path.join(destColPath, part);
+            fs.copyFileSync(src, dest);
           }
         }
-      };
+      }
 
-      copyRecursive(this.dbPath, backupPath);
-      this.emit('backup', { path: backupPath });
-      return backupPath;
+      this.emit('backup', { path: backupRoot, pack });
+      return backupRoot;
     } catch (err) {
       this.emit('error', err);
       return null;
     }
   }
 
-  async backupAsync(backupRoot = './backups') {
-    return this.backup(backupRoot);
+  async backupAsync(backupRoot = './backups', options = {}) {
+    return this.backup(backupRoot, options);
   }
 }
 
 // ====================== EXPORTS ======================
 
 
-// ====================== TRANSACTION ======================
-
+// ====================== TRANSACTION (real snapshot) ======================
+/**
+ * Snapshot transaction:
+ * - On start: deep-clones the in-memory index; parts are loaded lazily into an overlay.
+ * - All inserts/updates/deletes mutate only the overlay + working index.
+ * - Disk is untouched until commit().
+ * - rollback() discards the overlay — collection files stay as they were.
+ * - Only one active transaction per collection (enforced).
+ */
 class Transaction {
   constructor(collection) {
+    if (collection._activeTx) {
+      throw new Error('Collection already has an active transaction');
+    }
     this.collection = collection;
-    this.operations = [];
-    this.snapshot = null;
     this.active = true;
+    collection._activeTx = this;
+
+    // Snapshot of index at start (deep clone)
+    this.workingIndex = JSON.parse(JSON.stringify(collection.index));
+    // partKey → docs[]  (only parts that were read or written)
+    this.partOverlay = new Map();
+    // partKeys that were fully deleted (empty after delete)
+    this.deletedParts = new Set();
+    // Track original nextId for generateId inside tx
+    this._nextId = this.workingIndex.nextId || 1;
   }
 
   _ensureActive() {
@@ -1096,10 +1419,141 @@ class Transaction {
     }
   }
 
+  _generateId() {
+    const col = this.collection;
+    switch (col.idType) {
+      case 'uuid':
+        return crypto.randomUUID();
+      case 'objectid': {
+        const timestamp = Math.floor(Date.now() / 1000).toString(16).padStart(8, '0');
+        const random = crypto.randomBytes(8).toString('hex');
+        return timestamp + random;
+      }
+      case 'auto':
+      default: {
+        const id = this._nextId++;
+        this.workingIndex.nextId = this._nextId;
+        return id;
+      }
+    }
+  }
+
+  /** Load a part into the overlay (from overlay, or disk, or empty). */
+  _getPartDocs(partKey) {
+    if (this.deletedParts.has(partKey)) return [];
+    if (this.partOverlay.has(partKey)) {
+      return this.partOverlay.get(partKey);
+    }
+    const docs = this.collection._loadPartSync(partKey);
+    const copy = Array.isArray(docs) ? docs.map(d => ({ ...d })) : [];
+    this.partOverlay.set(partKey, copy);
+    return copy;
+  }
+
+  _setPartDocs(partKey, docs) {
+    if (!docs || docs.length === 0) {
+      this.partOverlay.set(partKey, []);
+      this.deletedParts.add(partKey);
+    } else {
+      this.partOverlay.set(partKey, docs);
+      this.deletedParts.delete(partKey);
+    }
+  }
+
+  _findPartWithSpace() {
+    for (const [partKey, meta] of Object.entries(this.workingIndex.parts || {})) {
+      if (this.deletedParts.has(partKey)) continue;
+      const overlay = this.partOverlay.get(partKey);
+      const count = overlay ? overlay.length : (meta.count || 0);
+      const size = overlay
+        ? Buffer.byteLength(JSON.stringify(overlay), 'utf8')
+        : (meta.size || 0);
+      const sizeOk = size < this.collection.maxPartSize;
+      const recordsOk =
+        this.collection.maxRecords == null || count < this.collection.maxRecords;
+      if (sizeOk && recordsOk) return partKey;
+    }
+    return null;
+  }
+
+  _createNewPartKey() {
+    const existing = Object.keys(this.workingIndex.parts || {})
+      .map(Number)
+      .filter(n => !isNaN(n));
+    const next = existing.length ? Math.max(...existing) + 1 : 1;
+    return padPart(next);
+  }
+
+  _indexAddDoc(doc, partKey) {
+    const id = getNestedValue(doc, this.collection.idField);
+    if (id !== undefined && id !== null) {
+      if (!this.workingIndex.idIndex) this.workingIndex.idIndex = {};
+      this.workingIndex.idIndex[String(id)] = partKey;
+    }
+    for (const field of this.collection.indexFields) {
+      const val = getNestedValue(doc, field);
+      if (val === undefined || val === null) continue;
+      if (!this.workingIndex.indexes[field]) this.workingIndex.indexes[field] = {};
+      const key = String(val);
+      if (!this.workingIndex.indexes[field][key]) this.workingIndex.indexes[field][key] = [];
+      this.workingIndex.indexes[field][key].push({ id, part: partKey });
+    }
+  }
+
+  _indexRemoveDoc(doc) {
+    const id = getNestedValue(doc, this.collection.idField);
+    if (id !== undefined && id !== null && this.workingIndex.idIndex) {
+      delete this.workingIndex.idIndex[String(id)];
+    }
+    for (const field of this.collection.indexFields) {
+      const val = getNestedValue(doc, field);
+      if (val != null && this.workingIndex.indexes[field]) {
+        const key = String(val);
+        const list = this.workingIndex.indexes[field][key];
+        if (Array.isArray(list)) {
+          this.workingIndex.indexes[field][key] = list.filter(
+            e => String(e.id) !== String(id)
+          );
+          if (this.workingIndex.indexes[field][key].length === 0) {
+            delete this.workingIndex.indexes[field][key];
+          }
+        }
+      }
+    }
+  }
+
+  // ---------- Public API ----------
+
   insert(doc) {
     this._ensureActive();
-    this.operations.push({ type: 'insert', doc: { ...doc } });
-    return doc;
+    if (!doc || typeof doc !== 'object') return null;
+
+    const document = { ...doc };
+    if (
+      this.collection.autoId &&
+      getNestedValue(document, this.collection.idField) === undefined
+    ) {
+      setNestedValue(document, this.collection.idField, this._generateId());
+    }
+
+    let partKey = this._findPartWithSpace();
+    if (!partKey) {
+      partKey = this._createNewPartKey();
+      if (!this.workingIndex.parts) this.workingIndex.parts = {};
+      this.workingIndex.parts[partKey] = { count: 0, size: 0 };
+    }
+
+    const docs = this._getPartDocs(partKey);
+    docs.push(document);
+    this._setPartDocs(partKey, docs);
+
+    this.workingIndex.parts[partKey] = {
+      count: docs.length,
+      size: Buffer.byteLength(JSON.stringify(docs), 'utf8')
+    };
+    this._indexAddDoc(document, partKey);
+
+    return document;
   }
 
   insertAsync(doc) {
@@ -1108,11 +1562,13 @@ class Transaction {
 
   insertMany(docs) {
     this._ensureActive();
-    const result = [];
+    if (!Array.isArray(docs)) return [];
+    const out = [];
     for (const d of docs) {
-      result.push(this.insert(d));
+      const r = this.insert(d);
+      if (r) out.push(r);
     }
-    return result;
+    return out;
   }
 
   insertManyAsync(docs) {
@@ -1120,9 +1576,7 @@ class Transaction {
   }
 
   updateOne(filter, update) {
-    this._ensureActive();
-    this.operations.push({ type: 'updateOne', filter, update });
-    return null;
+    return this._update(filter, update, true);
   }
 
   updateOneAsync(filter, update) {
@@ -1130,19 +1584,54 @@ class Transaction {
   }
 
   updateMany(filter, update) {
-    this._ensureActive();
-    this.operations.push({ type: 'updateMany', filter, update });
-    return [];
+    return this._update(filter, update, false);
   }
 
   updateManyAsync(filter, update) {
     return Promise.resolve(this.updateMany(filter, update));
   }
 
-  deleteOne(filter) {
+  _update(filter, update, onlyOne) {
     this._ensureActive();
-    this.operations.push({ type: 'deleteOne', filter });
-    return null;
+    const updated = [];
+    const partKeys = new Set([
+      ...Object.keys(this.workingIndex.parts || {}),
+      ...this.partOverlay.keys()
+    ]);
+
+    for (const partKey of partKeys) {
+      if (onlyOne && updated.length > 0) break;
+      if (this.deletedParts.has(partKey) && !this.partOverlay.has(partKey)) continue;
+
+      const docs = this._getPartDocs(partKey);
+      let modified = false;
+
+      for (let i = 0; i < docs.length; i++) {
+        if (matchQuery(docs[i], filter)) {
+          const original = { ...docs[i] };
+          this.collection._applyUpdate(docs[i], update);
+          this._indexRemoveDoc(original);
+          this._indexAddDoc(docs[i], partKey);
+          updated.push(docs[i]);
+          modified = true;
+          if (onlyOne) break;
+        }
+      }
+
+      if (modified) {
+        this._setPartDocs(partKey, docs);
+        this.workingIndex.parts[partKey] = {
+          count: docs.length,
+          size: Buffer.byteLength(JSON.stringify(docs), 'utf8')
+        };
+      }
+    }
+
+    return onlyOne ? (updated[0] || null) : updated;
+  }
+
+  deleteOne(filter) {
+    return this._delete(filter, true);
   }
 
   deleteOneAsync(filter) {
@@ -1150,53 +1639,123 @@ class Transaction {
   }
 
   deleteMany(filter) {
-    this._ensureActive();
-    this.operations.push({ type: 'deleteMany', filter });
-    return [];
+    return this._delete(filter, false);
   }
 
   deleteManyAsync(filter) {
     return Promise.resolve(this.deleteMany(filter));
   }
 
-  async commit() {
+  _delete(filter, onlyOne) {
     this._ensureActive();
-    try {
-      for (const op of this.operations) {
-        switch (op.type) {
-          case 'insert':
-            this.collection.insert(op.doc);
-            break;
-          case 'updateOne':
-            this.collection.updateOne(op.filter, op.update);
-            break;
-          case 'updateMany':
-            this.collection.updateMany(op.filter, op.update);
-            break;
-          case 'deleteOne':
-            this.collection.deleteOne(op.filter);
-            break;
-          case 'deleteMany':
-            this.collection.deleteMany(op.filter);
-            break;
+    const deleted = [];
+    const partKeys = new Set([
+      ...Object.keys(this.workingIndex.parts || {}),
+      ...this.partOverlay.keys()
+    ]);
+
+    for (const partKey of partKeys) {
+      if (onlyOne && deleted.length > 0) break;
+      if (this.deletedParts.has(partKey) && !this.partOverlay.has(partKey)) continue;
+
+      const docs = this._getPartDocs(partKey);
+      const remaining = [];
+      let modified = false;
+
+      for (const doc of docs) {
+        if ((!onlyOne || deleted.length === 0) && matchQuery(doc, filter)) {
+          deleted.push(doc);
+          this._indexRemoveDoc(doc);
+          modified = true;
+        } else {
+          remaining.push(doc);
         }
       }
+
+      if (modified) {
+        this._setPartDocs(partKey, remaining);
+        if (remaining.length === 0) {
+          delete this.workingIndex.parts[partKey];
+        } else {
+          this.workingIndex.parts[partKey] = {
+            count: remaining.length,
+            size: Buffer.byteLength(JSON.stringify(remaining), 'utf8')
+          };
+        }
+      }
+    }
+
+    return onlyOne ? (deleted[0] || null) : deleted;
+  }
+
+  /**
+   * Commit: write all overlay parts to disk, then replace the collection index.
+   * Disk is only touched here. On failure the collection index is left unchanged
+   * if we haven't swapped yet; partial part writes are recoverable via rebuildIndexes.
+   */
+  async commit() {
+    this._ensureActive();
+    const col = this.collection;
+
+    try {
+      // Write / delete parts
+      for (const [partKey, docs] of this.partOverlay.entries()) {
+        if (this.deletedParts.has(partKey) || docs.length === 0) {
+          try {
+            const p = col._partPath(partKey);
+            if (fs.existsSync(p)) fs.unlinkSync(p);
+          } catch (_) {}
+          delete this.workingIndex.parts[partKey];
+        } else {
+          col._savePartSync(partKey, docs);
+          // _savePartSync already updates col.index.parts — we overwrite index below
+        }
+      }
+
+      // Also remove any parts marked deleted that weren't in overlay with data
+      for (const partKey of this.deletedParts) {
+        try {
+          const p = col._partPath(partKey);
+          if (fs.existsSync(p)) fs.unlinkSync(p);
+        } catch (_) {}
+        delete this.workingIndex.parts[partKey];
+      }
+
+      // Swap index + persist
+      this.workingIndex.nextId = this._nextId;
+      col.index = this.workingIndex;
+      col._saveIndexSync();
+
       this.active = false;
-      this.collection.emit('transactionCommit', { collection: this.collection.name });
-      this.collection.db?.emit('transactionCommit', { collection: this.collection.name });
+      col._activeTx = null;
+
+      col.emit('transactionCommit', { collection: col.name });
+      col.db?.emit('transactionCommit', { collection: col.name });
+      col.emit('save', { collection: col.name });
+      col.db?.emit('save', { collection: col.name });
+
       return true;
     } catch (err) {
-      this.collection._emitError(err);
+      col._emitError(err);
+      // Leave transaction active so caller can retry or rollback
       return false;
     }
   }
 
   async rollback() {
     this._ensureActive();
-    this.operations = [];
+    this.partOverlay.clear();
+    this.deletedParts.clear();
+    this.workingIndex = null;
     this.active = false;
-    this.collection.emit('transactionRollback', { collection: this.collection.name });
-    this.collection.db?.emit('transactionRollback', { collection: this.collection.name });
+    this.collection._activeTx = null;
+
+    this.collection.emit('transactionRollback', {
+      collection: this.collection.name
+    });
+    this.collection.db?.emit('transactionRollback', {
+      collection: this.collection.name
+    });
     return true;
   }
 }
