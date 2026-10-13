@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Indexes – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link active" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Indexes</div>
+
+      <h1>Indexes</h1>
+      <p>
+        Indexes make equality lookups on a field much faster.
+        Without an index the library must scan every document in every part.
+        With an index it can jump directly to the relevant part(s).
+      </p>
+
+      <h2>Defining indexes</h2>
+      <p>Indexes are declared when you create (or open) a collection:</p>
+      <pre><code class="language-javascript">const users = db.collection({
+  name: 'users',
+  autoId: true,
+  indexes: ['email', 'username', 'profile.city']   // nested fields work too
+});</code></pre>
+      <p>
+        The list is stored in the collection options and is used both when
+        inserting/updating documents and when rebuilding the index later.
+      </p>
+
+      <h2>How indexes are stored</h2>
+      <p>
+        Secondary indexes live inside <code>index.json</code> under the key <code>indexes</code>:
+      </p>
+      <pre><code class="language-json">{
+  "indexes": {
+    "email": {
+      "alice@example.com": [{ "id": 1, "part": "0001" }],
+      "bob@example.com":   [{ "id": 2, "part": "0001" }]
+    },
+    "username": {
+      "alice": [{ "id": 1, "part": "0001" }],
+      "bob":   [{ "id": 2, "part": "0001" }]
+    }
+  }
+}</code></pre>
+      <p>
+        Each value maps to an array of <code>{ id, part }</code> entries so that
+        non-unique values are supported.
+      </p>
+
+      <h2>When the index is used</h2>
+      <p>
+        The query engine uses a secondary index only when:
+      </p>
+      <ul>
+        <li>The query contains a simple equality condition on an indexed field, and</li>
+        <li>That is the <em>only</em> condition in the query (single-field equality)</li>
+      </ul>
+      <pre><code class="language-javascript">// Uses the email index → very fast
+users.findOne({ email: 'alice@example.com' });
+
+// Full scan (multiple fields or operators)
+users.find({ email: 'alice@example.com', active: true }).toArray();
+users.find({ age: { $gte: 18 } }).toArray();</code></pre>
+
+      <h2>Primary index (idIndex)</h2>
+      <p>
+        In addition to secondary indexes there is always a primary <code>idIndex</code>
+        that maps every document ID to the part that contains it.
+        This makes <code>findOne({ _id: … })</code> fast even without an explicit secondary index.
+      </p>
+
+      <h2>Rebuilding indexes</h2>
+      <p>
+        If you change the list of indexed fields, or if the index becomes inconsistent
+        (for example after manually editing part files), you can rebuild:
+      </p>
+      <pre><code class="language-javascript">users.rebuildIndexes();
+// Scans every part, rebuilds idIndex + secondary indexes, writes index.json</code></pre>
+      <p>
+        The collection also emits an <code>index-rebuilt</code> event when this finishes.
+      </p>
+
+      <h2>Best practices</h2>
+      <ul>
+        <li>Index fields that you frequently look up by exact value (email, username, sku, status, …).</li>
+        <li>Do not index high-cardinality fields that you only use in range queries – the index will not help.</li>
+        <li>Keep the number of indexed fields reasonable; each index adds memory and write cost.</li>
+        <li>Nested fields are supported: <code>indexes: ['address.city']</code>.</li>
+      </ul>
+
+      <div class="page-footer">
+        <a href="updates.html">← Update Operators</a>
+        <a href="transactions.html">Transactions →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

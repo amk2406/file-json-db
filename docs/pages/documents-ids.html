@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documents &amp; IDs – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link active" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Documents &amp; IDs</div>
+
+      <h1>Documents &amp; IDs</h1>
+      <p>
+        Everything stored in file-json-db is a plain JavaScript object (a “document”).
+        There is no schema enforcement – you can put any JSON-serializable data you want.
+      </p>
+
+      <h2>What is a document?</h2>
+      <p>
+        A document is a normal object that can be converted to JSON:
+      </p>
+      <pre><code class="language-javascript">{
+  name: 'Ada Lovelace',
+  email: 'ada@analytical.engine',
+  age: 36,
+  tags: ['math', 'computing'],
+  address: {
+    city: 'London',
+    country: 'UK'
+  },
+  active: true,
+  createdAt: '2026-01-15T10:00:00.000Z'
+}</code></pre>
+      <p>
+        Nested objects, arrays, numbers, strings, booleans and <code>null</code> are all fine.
+        Functions, Symbols, and circular references are not supported (JSON cannot represent them).
+      </p>
+
+      <h2>The primary key (ID)</h2>
+      <p>
+        Every document should have a unique identifier. By default the field is called <code>_id</code>,
+        but you can change it with the <code>idField</code> option.
+      </p>
+
+      <h3>Automatic ID generation</h3>
+      <p>When <code>autoId: true</code> is set, the library generates an ID if the document does not already have one:</p>
+      <pre><code class="language-javascript">const users = db.collection({
+  name: 'users',
+  autoId: true,
+  idType: 'auto'     // sequential integers
+});
+
+const u = users.insert({ name: 'Alice' });
+console.log(u._id);  // → 1
+
+const u2 = users.insert({ name: 'Bob' });
+console.log(u2._id); // → 2</code></pre>
+
+      <h3>ID types</h3>
+      <table>
+        <thead>
+          <tr><th>idType</th><th>Example value</th><th>When to use</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>auto</code></td>
+            <td><code>1</code>, <code>2</code>, <code>3</code> …</td>
+            <td>Simple apps, human-readable IDs, default choice</td>
+          </tr>
+          <tr>
+            <td><code>uuid</code></td>
+            <td><code>"a1b2c3d4-e5f6-7890-abcd-ef1234567890"</code></td>
+            <td>Distributed systems, need globally unique IDs without coordination</td>
+          </tr>
+          <tr>
+            <td><code>objectid</code></td>
+            <td><code>"68f1a2b3c4d5e6f7890abcde"</code></td>
+            <td>Want MongoDB-style 24-char hex IDs that embed a timestamp</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Custom ID field name</h3>
+      <pre><code class="language-javascript">const products = db.collection({
+  name: 'products',
+  autoId: true,
+  idField: 'sku',      // use "sku" instead of "_id"
+  idType: 'uuid'
+});
+
+const p = products.insert({ name: 'Widget', price: 9.99 });
+console.log(p.sku);    // → a UUID string
+console.log(p._id);    // → undefined</code></pre>
+
+      <h3>Providing your own ID</h3>
+      <p>
+        If you supply the ID field yourself, the library uses your value and does not overwrite it:
+      </p>
+      <pre><code class="language-javascript">users.insert({
+  _id: 'custom-001',
+  name: 'Charlie'
+});</code></pre>
+
+      <h2>Nested documents</h2>
+      <p>
+        Documents can contain nested objects and arrays. You can query them with dot notation:
+      </p>
+      <pre><code class="language-javascript">users.insert({
+  name: 'Dana',
+  profile: {
+    bio: 'Developer',
+    social: {
+      twitter: '@dana',
+      github: 'dana-dev'
+    }
+  },
+  scores: [10, 20, 30]
+});
+
+// Query nested field
+users.findOne({ 'profile.social.github': 'dana-dev' });</code></pre>
+
+      <h2>What is stored on disk</h2>
+      <p>
+        Part files contain plain JSON arrays of documents. Example content of <code>part-0001.json</code>:
+      </p>
+      <pre><code class="language-json">[
+  {
+    "_id": 1,
+    "name": "Alice",
+    "email": "alice@example.com",
+    "age": 28
+  },
+  {
+    "_id": 2,
+    "name": "Bob",
+    "email": "bob@example.com",
+    "age": 32
+  }
+]</code></pre>
+
+      <div class="page-footer">
+        <a href="collections.html">← Collections</a>
+        <a href="storage.html">Storage &amp; Part Files →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

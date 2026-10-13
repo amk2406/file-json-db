@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Async API – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link active" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Async API</div>
+
+      <h1>Async API</h1>
+      <p>
+        Almost every mutating and reading method has both a synchronous and an
+        asynchronous version. The async versions return Promises and go through
+        the collection’s internal lock/queue so concurrent writes stay safe.
+      </p>
+
+      <h2>Why both?</h2>
+      <ul>
+        <li><strong>Sync</strong> – simple scripts, CLI tools, startup code, tests.</li>
+        <li><strong>Async</strong> – web servers, Electron main process, any place where
+            you must not block the event loop for long disk I/O.</li>
+      </ul>
+
+      <h2>Naming convention</h2>
+      <p>Async methods end with <code>Async</code>:</p>
+      <table>
+        <thead>
+          <tr><th>Sync</th><th>Async</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>insert</code></td><td><code>insertAsync</code></td></tr>
+          <tr><td><code>insertMany</code></td><td><code>insertManyAsync</code></td></tr>
+          <tr><td><code>find</code></td><td><code>findAsync</code></td></tr>
+          <tr><td><code>findOne</code></td><td><code>findOneAsync</code></td></tr>
+          <tr><td><code>updateOne</code></td><td><code>updateOneAsync</code></td></tr>
+          <tr><td><code>updateMany</code></td><td><code>updateManyAsync</code></td></tr>
+          <tr><td><code>deleteOne</code></td><td><code>deleteOneAsync</code></td></tr>
+          <tr><td><code>deleteMany</code></td><td><code>deleteManyAsync</code></td></tr>
+          <tr><td><code>updateFunc</code></td><td><code>updateFuncAsync</code></td></tr>
+          <tr><td><code>import</code></td><td><code>importAsync</code></td></tr>
+          <tr><td><code>backup</code> (on db)</td><td><code>backupAsync</code></td></tr>
+        </tbody>
+      </table>
+
+      <h2>How the lock works</h2>
+      <p>
+        Each collection maintains a boolean lock and a FIFO queue.
+        When you call an async method:
+      </p>
+      <ol>
+        <li>If the lock is free, the operation runs immediately.</li>
+        <li>If the lock is held, the operation is pushed onto the queue.</li>
+        <li>When the current operation finishes, the next queued one starts.</li>
+      </ol>
+      <p>
+        This guarantees that two async writes on the same collection never
+        interleave and corrupt part files or the index.
+      </p>
+
+      <h2>Examples</h2>
+      <pre><code class="language-javascript">// Express-style route
+app.post('/users', async (req, res) => {
+  try {
+    const user = await users.insertAsync(req.body);
+    res.status(201).json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Sequential async work
+await users.insertAsync({ name: 'Alice' });
+await users.insertAsync({ name: 'Bob' });
+const all = await users.findAsync({});
+console.log(all.toArray());
+
+// Parallel inserts on *different* collections are fine
+await Promise.all([
+  users.insertAsync({ name: 'Carol' }),
+  orders.insertAsync({ total: 49.99 })
+]);</code></pre>
+
+      <h2>findAsync returns a QueryBuilder</h2>
+      <p>
+        <code>findAsync</code> resolves to a normal QueryBuilder.
+        After that you still call the synchronous terminal methods
+        (<code>toArray</code>, <code>first</code>, <code>count</code>):
+      </p>
+      <pre><code class="language-javascript">const builder = await users.findAsync({ active: true });
+const page = builder.sort({ name: 1 }).limit(20).toArray();</code></pre>
+
+      <h2>When to prefer sync</h2>
+      <ul>
+        <li>Short-lived scripts that run to completion</li>
+        <li>Unit tests</li>
+        <li>Application bootstrap / seed data</li>
+        <li>Any context where you already know you are the only writer</li>
+      </ul>
+
+      <div class="callout">
+        <span class="callout-title">Rule of thumb</span>
+        In a long-running server or desktop app, prefer the async methods for
+        anything that touches the disk. In a one-shot CLI tool, sync is simpler
+        and perfectly fine.
+      </div>
+
+      <div class="page-footer">
+        <a href="aggregation.html">← Aggregation</a>
+        <a href="import-export.html">Import &amp; Export →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

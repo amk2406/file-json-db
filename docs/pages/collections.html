@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Collections – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link active" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Collections</div>
+
+      <h1>Collections</h1>
+      <p>
+        A <strong>collection</strong> is the basic unit of storage. It maps to a directory
+        on disk and holds documents that share the same logical type
+        (users, products, orders, …).
+      </p>
+
+      <h2>Creating a collection</h2>
+      <pre><code class="language-javascript">const users = db.collection('users');
+
+// or with full options
+const users = db.collection({
+  name: 'users',
+  autoId: true,
+  idField: '_id',
+  idType: 'auto',
+  indexes: ['email', 'username'],
+  pretty: true,
+  maxPartSize: 256 * 1024,
+  maxRecords: 1000,
+  errorLevel: 'debug'
+});</code></pre>
+
+      <h2>Collection options explained</h2>
+      <table>
+        <thead>
+          <tr><th>Option</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>name</code></td><td>string</td><td>required</td><td>Directory name of the collection</td></tr>
+          <tr><td><code>autoId</code></td><td>boolean</td><td><code>false</code></td><td>Generate an ID when the document does not have one</td></tr>
+          <tr><td><code>idField</code></td><td>string</td><td><code>_id</code></td><td>Which field holds the primary key</td></tr>
+          <tr><td><code>idType</code></td><td>string</td><td><code>auto</code></td><td><code>auto</code> | <code>uuid</code> | <code>objectid</code></td></tr>
+          <tr><td><code>indexes</code></td><td>string[]</td><td><code>[]</code></td><td>Fields that get secondary indexes</td></tr>
+          <tr><td><code>pretty</code></td><td>boolean</td><td><code>true</code></td><td>Pretty-print JSON (indentation)</td></tr>
+          <tr><td><code>maxPartSize</code></td><td>number</td><td>256 KB</td><td>Target maximum size of a part file in bytes</td></tr>
+          <tr><td><code>maxRecords</code></td><td>number | null</td><td><code>null</code></td><td>Maximum number of documents per part</td></tr>
+          <tr><td><code>errorLevel</code></td><td>string</td><td><code>debug</code></td><td><code>debug</code> or <code>ignore</code> for corrupted parts</td></tr>
+        </tbody>
+      </table>
+
+      <h3>autoId and idType</h3>
+      <p>When <code>autoId</code> is <code>true</code> and a document is inserted without an ID field:</p>
+      <ul>
+        <li><code>idType: 'auto'</code> → sequential integers (1, 2, 3, …)</li>
+        <li><code>idType: 'uuid'</code> → RFC-4122 UUID v4 strings</li>
+        <li><code>idType: 'objectid'</code> → 24-character hex strings similar to MongoDB ObjectIds</li>
+      </ul>
+      <pre><code class="language-javascript">const orders = db.collection({
+  name: 'orders',
+  autoId: true,
+  idType: 'uuid'
+});
+
+const order = orders.insert({ total: 49.99 });
+console.log(order._id);
+// → "a3f2c1b4-9e8d-4f7a-b6c5-1d2e3f4a5b6c"</code></pre>
+
+      <h3>maxPartSize and maxRecords</h3>
+      <p>
+        These two options control when the library starts a new part file.
+        A new part is created when <em>either</em> limit is reached.
+      </p>
+      <pre><code class="language-javascript">const logs = db.collection({
+  name: 'logs',
+  maxPartSize: 512 * 1024,   // 512 KB
+  maxRecords: 2000           // or 2000 documents
+});</code></pre>
+
+      <h3>errorLevel</h3>
+      <ul>
+        <li><code>debug</code> (default) – copy corrupted part to <code>crash/</code>, emit an error, skip the part</li>
+        <li><code>ignore</code> – silently skip the corrupted part</li>
+      </ul>
+
+      <h2>On-disk layout of a collection</h2>
+      <pre><code class="language-text">data/
+└── users/
+    ├── index.json          ← metadata + primary & secondary indexes
+    ├── part-0001.json      ← first chunk of documents
+    ├── part-0002.json
+    └── crash/              ← (optional) isolated bad parts
+        └── part-0003.json</code></pre>
+
+      <h2>Collection events</h2>
+      <p>Each collection is also an EventEmitter:</p>
+      <pre><code class="language-javascript">users.on('insert', (info) => console.log('inserted', info));
+users.on('update', (info) => console.log('updated', info.count, 'docs'));
+users.on('delete', (info) => console.log('deleted', info.count, 'docs'));
+users.on('save',   (info) => console.log('saved collection', info.collection));
+users.on('error',  (err)  => console.error(err));
+users.on('index-rebuilt', (info) => console.log('indexes rebuilt'));
+users.on('transactionCommit',   () => console.log('tx committed'));
+users.on('transactionRollback', () => console.log('tx rolled back'));</code></pre>
+
+      <div class="page-footer">
+        <a href="database.html">← Database</a>
+        <a href="documents-ids.html">Documents &amp; IDs →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

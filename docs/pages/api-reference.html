@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Reference – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link active" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / API Reference</div>
+
+      <h1>API Reference</h1>
+      <p>
+        Complete reference for the public surface of file-json-db v1.4.0.
+        Types are shown in TypeScript style for clarity.
+      </p>
+
+      <h2>JSONDB</h2>
+      <div class="method-sig">
+        <span class="name">new JSONDB</span>(<span class="param">dbPath?</span>: <span class="type">string</span>) → <span class="return">JSONDB</span>
+      </div>
+      <p>Create or open a database at the given path (default <code>./database</code>).</p>
+
+      <h3>Methods</h3>
+      <table>
+        <thead><tr><th>Method</th><th>Returns</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>collection(nameOrOptions)</code></td><td><code>Collection</code></td><td>Get or create a collection</td></tr>
+          <tr><td><code>createCollection(nameOrOptions)</code></td><td><code>Collection</code></td><td>Alias of <code>collection</code></td></tr>
+          <tr><td><code>listCollections()</code></td><td><code>string[]</code></td><td>Names of collections found on disk</td></tr>
+          <tr><td><code>dropCollection(name)</code></td><td><code>boolean</code></td><td>Delete collection directory</td></tr>
+          <tr><td><code>unloadCollection(name)</code></td><td><code>boolean</code></td><td>Remove collection from memory</td></tr>
+          <tr><td><code>backup(backupRoot?, options?)</code></td><td><code>string | null</code></td><td>Snapshot all collections</td></tr>
+          <tr><td><code>backupAsync(backupRoot?, options?)</code></td><td><code>Promise&lt;string | null&gt;</code></td><td>Async backup</td></tr>
+        </tbody>
+      </table>
+
+      <h3>CollectionOptions</h3>
+      <pre><code class="language-typescript">interface CollectionOptions {
+  name: string;
+  autoId?: boolean;          // default false
+  idField?: string;          // default '_id'
+  idType?: 'auto' | 'uuid' | 'objectid';  // default 'auto'
+  indexes?: string[];        // default []
+  pretty?: boolean;          // default true
+  maxPartSize?: number;      // default 256 * 1024
+  maxRecords?: number | null;
+  errorLevel?: 'debug' | 'ignore';  // default 'debug'
+}</code></pre>
+
+      <h2>Collection</h2>
+
+      <h3>Insert</h3>
+      <div class="method-sig"><span class="name">insert</span>(doc: <span class="type">object</span>) → <span class="return">object | null</span></div>
+      <div class="method-sig"><span class="name">insertAsync</span>(doc: <span class="type">object</span>) → <span class="return">Promise&lt;object | null&gt;</span></div>
+      <div class="method-sig"><span class="name">insertMany</span>(docs: <span class="type">object[]</span>) → <span class="return">object[]</span></div>
+      <div class="method-sig"><span class="name">insertManyAsync</span>(docs: <span class="type">object[]</span>) → <span class="return">Promise&lt;object[]&gt;</span></div>
+
+      <h3>Find</h3>
+      <div class="method-sig"><span class="name">find</span>(query?: <span class="type">object</span>) → <span class="return">QueryBuilder</span></div>
+      <div class="method-sig"><span class="name">findAsync</span>(query?: <span class="type">object</span>) → <span class="return">Promise&lt;QueryBuilder&gt;</span></div>
+      <div class="method-sig"><span class="name">findOne</span>(query?: <span class="type">object</span>) → <span class="return">object | null</span></div>
+      <div class="method-sig"><span class="name">findOneAsync</span>(query?: <span class="type">object</span>) → <span class="return">Promise&lt;object | null&gt;</span></div>
+
+      <h3>Update</h3>
+      <div class="method-sig"><span class="name">updateOne</span>(filter: <span class="type">object</span>, update: <span class="type">object</span>) → <span class="return">object | null</span></div>
+      <div class="method-sig"><span class="name">updateOneAsync</span>(filter, update) → <span class="return">Promise&lt;object | null&gt;</span></div>
+      <div class="method-sig"><span class="name">updateMany</span>(filter, update) → <span class="return">object[]</span></div>
+      <div class="method-sig"><span class="name">updateManyAsync</span>(filter, update) → <span class="return">Promise&lt;object[]&gt;</span></div>
+      <div class="method-sig"><span class="name">updateFunc</span>(filter, fn, options?) → <span class="return">object | object[] | null</span></div>
+      <div class="method-sig"><span class="name">updateFuncAsync</span>(filter, fn, options?) → <span class="return">Promise&lt;…&gt;</span></div>
+
+      <h3>Delete</h3>
+      <div class="method-sig"><span class="name">deleteOne</span>(filter: <span class="type">object</span>) → <span class="return">object | null</span></div>
+      <div class="method-sig"><span class="name">deleteOneAsync</span>(filter) → <span class="return">Promise&lt;object | null&gt;</span></div>
+      <div class="method-sig"><span class="name">deleteMany</span>(filter) → <span class="return">object[]</span></div>
+      <div class="method-sig"><span class="name">deleteManyAsync</span>(filter) → <span class="return">Promise&lt;object[]&gt;</span></div>
+
+      <h3>Other</h3>
+      <div class="method-sig"><span class="name">startTransaction</span>() → <span class="return">Transaction</span></div>
+      <div class="method-sig"><span class="name">aggregate</span>(pipeline?: <span class="type">object[]</span>) → <span class="return">object[]</span></div>
+      <div class="method-sig"><span class="name">import</span>(filePath: <span class="type">string</span>, options?: <span class="type">ImportOptions</span>) → <span class="return">boolean</span></div>
+      <div class="method-sig"><span class="name">importAsync</span>(filePath, options?) → <span class="return">Promise&lt;boolean&gt;</span></div>
+      <div class="method-sig"><span class="name">rebuildIndexes</span>() → <span class="return">void</span></div>
+      <div class="method-sig"><span class="name">rebuildId</span>() → <span class="return">number</span></div>
+
+      <h2>QueryBuilder</h2>
+      <div class="method-sig"><span class="name">limit</span>(n: <span class="type">number</span>) → <span class="return">this</span></div>
+      <div class="method-sig"><span class="name">skip</span>(n: <span class="type">number</span>) → <span class="return">this</span></div>
+      <div class="method-sig"><span class="name">sort</span>(spec: <span class="type">object</span>) → <span class="return">this</span></div>
+      <div class="method-sig"><span class="name">project</span>(spec: <span class="type">object</span>) → <span class="return">this</span></div>
+      <div class="method-sig"><span class="name">toArray</span>() → <span class="return">object[]</span></div>
+      <div class="method-sig"><span class="name">first</span>() → <span class="return">object | null</span></div>
+      <div class="method-sig"><span class="name">count</span>() → <span class="return">number</span></div>
+
+      <h2>Transaction</h2>
+      <p>
+        Same mutation methods as Collection (<code>insert</code>, <code>updateOne</code>,
+        <code>deleteMany</code>, … plus their Async variants), plus:
+      </p>
+      <div class="method-sig"><span class="name">commit</span>() → <span class="return">Promise&lt;boolean&gt;</span></div>
+      <div class="method-sig"><span class="name">rollback</span>() → <span class="return">Promise&lt;boolean&gt;</span></div>
+
+      <h2>Query operators (summary)</h2>
+      <p>
+        <code>$eq</code> <code>$ne</code> <code>$gt</code> <code>$gte</code> <code>$lt</code> <code>$lte</code>
+        <code>$in</code> <code>$nin</code> <code>$exists</code> <code>$regex</code> <code>$type</code>
+        <code>$size</code> <code>$elemMatch</code> <code>$and</code> <code>$or</code> <code>$nor</code>
+      </p>
+      <p>See the <a href="queries.html">Queries &amp; Operators</a> page for full explanations.</p>
+
+      <h2>Update operators (summary)</h2>
+      <p>
+        <code>$set</code> <code>$inc</code> <code>$push</code> <code>$pull</code> <code>$unset</code>
+      </p>
+      <p>See the <a href="updates.html">Update Operators</a> page for details.</p>
+
+      <div class="page-footer">
+        <a href="error-recovery.html">← Error Handling</a>
+        <a href="real-world.html">Real-World Examples →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

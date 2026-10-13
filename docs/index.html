@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>file-json-db – Documentation</title>
+  <link rel="stylesheet" href="css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link active" href="index.html">Introduction</a>
+          <a class="nav-link" href="pages/installation.html">Installation</a>
+          <a class="nav-link" href="pages/quick-start.html">Quick Start</a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="pages/architecture.html">Architecture</a>
+          <a class="nav-link" href="pages/database.html">Database</a>
+          <a class="nav-link" href="pages/collections.html">Collections</a>
+          <a class="nav-link" href="pages/documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="pages/storage.html">Storage &amp; Part Files</a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="pages/crud.html">CRUD Operations</a>
+          <a class="nav-link" href="pages/queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="pages/query-builder.html">Query Builder</a>
+          <a class="nav-link" href="pages/updates.html">Update Operators</a>
+          <a class="nav-link" href="pages/indexes.html">Indexes</a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="pages/transactions.html">Transactions</a>
+          <a class="nav-link" href="pages/aggregation.html">Aggregation</a>
+          <a class="nav-link" href="pages/async-api.html">Async API</a>
+          <a class="nav-link" href="pages/import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="pages/backups.html">Backups</a>
+          <a class="nav-link" href="pages/events.html">Events</a>
+          <a class="nav-link" href="pages/error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="pages/api-reference.html">API Reference</a>
+          <a class="nav-link" href="pages/real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="pages/performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="pages/faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb">Documentation / Introduction</div>
+
+      <h1>file-json-db</h1>
+      <p style="font-size: 1.15rem; color: var(--text-muted); margin-bottom: 2rem;">
+        A resilient, zero-dependency, MongoDB-style JSON document database for Node.js.
+      </p>
+
+      <p>
+        <strong>file-json-db</strong> lets you store structured documents on the local filesystem
+        while giving you a familiar document-database API. There is no separate database server to install,
+        no external dependencies to manage, and the data remains human-readable JSON files.
+      </p>
+
+      <div class="callout">
+        <span class="callout-title">Perfect for</span>
+        Prototypes and MVPs · CLI tools · Electron / desktop apps · Small backends ·
+        Local configuration stores · Learning how document databases work
+      </div>
+
+      <h2>What problem does it solve?</h2>
+      <p>
+        Most applications eventually need persistent structured data. Reaching for MongoDB, PostgreSQL,
+        or even SQLite is often overkill for small projects, scripts, or desktop applications.
+        At the same time, hand-rolling <code>fs.readFile</code> / <code>JSON.parse</code> becomes
+        painful the moment you need queries, indexes, concurrent writes, or recovery from partial writes.
+      </p>
+      <p>
+        <strong>file-json-db</strong> sits in the sweet spot: it gives you a real document API
+        (insert, find, update, delete, aggregation, transactions) while storing everything as plain
+        JSON files on disk. Collections are directories. Large collections are automatically split
+        into multiple <code>part-XXXX.json</code> files so a single file never grows unboundedly.
+      </p>
+
+      <h2>Core ideas</h2>
+      <ul>
+        <li>A <strong>database</strong> is a directory on the filesystem.</li>
+        <li>A <strong>collection</strong> is a subdirectory inside that database.</li>
+        <li>Collection data is stored in one or more <code>part-XXXX.json</code> files.</li>
+        <li>An in-memory <strong>index</strong> (<code>index.json</code>) tracks which part contains which document and maintains secondary indexes.</li>
+        <li>Every write is <strong>atomic</strong>: data is written to a temporary file, then renamed into place.</li>
+        <li>Asynchronous operations are serialized through a per-collection lock/queue.</li>
+        <li>Corrupted part files can be recovered without crashing the process.</li>
+      </ul>
+
+      <h2>Key features at a glance</h2>
+      <table>
+        <thead>
+          <tr><th>Feature</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Zero dependencies</td><td>Only Node.js built-in modules (<code>fs</code>, <code>path</code>, <code>crypto</code>, <code>events</code>)</td></tr>
+          <tr><td>MongoDB-style API</td><td><code>insert</code>, <code>find</code>, <code>updateOne</code>, <code>$set</code>, <code>$push</code>, aggregation, etc.</td></tr>
+          <tr><td>Chunked storage</td><td>Large collections automatically split across multiple part files</td></tr>
+          <tr><td>Secondary indexes</td><td>Fast equality lookups on configured fields</td></tr>
+          <tr><td>Atomic writes</td><td>Temp-file + rename with retry logic</td></tr>
+          <tr><td>Snapshot transactions</td><td>Commit / rollback without touching disk until commit</td></tr>
+          <tr><td>Sync + Async</td><td>Every major operation has both variants</td></tr>
+          <tr><td>Self-healing</td><td>Corrupted parts are isolated; the rest of the collection keeps working</td></tr>
+          <tr><td>TypeScript ready</td><td>Full <code>.d.ts</code> declarations included</td></tr>
+        </tbody>
+      </table>
+
+      <h2>What it is <em>not</em></h2>
+      <div class="callout warning">
+        <span class="callout-title">Important</span>
+        file-json-db is an <strong>embedded</strong> database. It runs inside your Node.js process.
+        It is not a network database server. Multiple processes writing to the same collection
+        concurrently are not supported without external coordination.
+      </div>
+      <p>
+        It is also not designed for datasets of millions of documents or for high-concurrency
+        production web servers. For those cases you should use a proper database engine.
+      </p>
+
+      <h2>Quick example</h2>
+      <pre><code class="language-javascript">const { JSONDB } = require('file-json-db');
+
+const db = new JSONDB('./data');
+
+const users = db.collection({
+  name: 'users',
+  autoId: true,
+  indexes: ['email']
+});
+
+// Insert
+const user = users.insert({
+  name: 'Ada Lovelace',
+  email: 'ada@analytical.engine',
+  role: 'admin'
+});
+
+// Find by indexed field (very fast)
+const found = users.findOne({ email: 'ada@analytical.engine' });
+
+// Update
+users.updateOne(
+  { email: 'ada@analytical.engine' },
+  { $set: { lastLogin: new Date().toISOString() }, $push: { tags: 'verified' } }
+);
+
+// Query with operators
+const admins = users.find({ role: 'admin', age: { $gte: 18 } }).toArray();</code></pre>
+
+      <h2>Next steps</h2>
+      <ul>
+        <li><a href="pages/installation.html">Install the package</a></li>
+        <li><a href="pages/quick-start.html">Follow the Quick Start guide</a></li>
+        <li><a href="pages/architecture.html">Understand the Architecture</a></li>
+        <li><a href="pages/real-world.html">See Real-World Examples</a></li>
+      </ul>
+
+      <div class="page-footer">
+        <span>file-json-db documentation</span>
+        <a href="pages/installation.html">Installation →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

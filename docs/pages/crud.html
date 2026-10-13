@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRUD Operations – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link active" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / CRUD Operations</div>
+
+      <h1>CRUD Operations</h1>
+      <p>
+        CRUD stands for Create, Read, Update, Delete – the four basic operations
+        every database must support. file-json-db provides both synchronous and
+        asynchronous versions of each.
+      </p>
+
+      <h2>Create – Insert</h2>
+
+      <h3>insert(document) <span class="badge badge-sync">sync</span></h3>
+      <p>Insert a single document. Returns the inserted document (with generated ID if applicable).</p>
+      <pre><code class="language-javascript">const user = users.insert({
+  name: 'Alice',
+  email: 'alice@example.com',
+  age: 28
+});
+console.log(user._id); // → 1 (if autoId is true)</code></pre>
+
+      <h3>insertAsync(document) <span class="badge badge-async">async</span></h3>
+      <pre><code class="language-javascript">const user = await users.insertAsync({
+  name: 'Bob',
+  email: 'bob@example.com'
+});</code></pre>
+      <p>
+        Async inserts go through the collection’s internal lock/queue,
+        so concurrent async writes on the same collection are serialized.
+      </p>
+
+      <h3>insertMany(documents) / insertManyAsync(documents)</h3>
+      <p>Insert an array of documents in one go. Returns the array of inserted documents.</p>
+      <pre><code class="language-javascript">const inserted = users.insertMany([
+  { name: 'Carol', email: 'carol@example.com' },
+  { name: 'Dave',  email: 'dave@example.com' }
+]);
+
+// Async version
+const inserted2 = await users.insertManyAsync([
+  { name: 'Eve', email: 'eve@example.com' }
+]);</code></pre>
+      <div class="callout">
+        <span class="callout-title">Batching</span>
+        <code>insertMany</code> respects <code>maxRecords</code> / <code>maxPartSize</code>
+        and will create new part files as needed while inserting the batch.
+      </div>
+
+      <h2>Read – Find</h2>
+
+      <h3>findOne(query) / findOneAsync(query)</h3>
+      <p>Return the first matching document, or <code>null</code> if none match.</p>
+      <pre><code class="language-javascript">const user = users.findOne({ email: 'alice@example.com' });
+const user2 = await users.findOneAsync({ name: 'Bob' });</code></pre>
+
+      <h3>find(query) / findAsync(query)</h3>
+      <p>
+        Return a <a href="query-builder.html">QueryBuilder</a>.
+        You must call <code>.toArray()</code>, <code>.first()</code> or <code>.count()</code>
+        to get the actual results.
+      </p>
+      <pre><code class="language-javascript">// All adults
+const adults = users.find({ age: { $gte: 18 } }).toArray();
+
+// First match only
+const first = users.find({ active: true }).first();
+
+// Just the count
+const total = users.find({}).count();
+
+// With limit / sort
+const page = users.find({ active: true })
+  .sort({ name: 1 })
+  .skip(20)
+  .limit(10)
+  .toArray();</code></pre>
+
+      <h2>Update</h2>
+
+      <h3>updateOne(filter, update) / updateOneAsync</h3>
+      <p>Update the first document that matches the filter. Returns the updated document or <code>null</code>.</p>
+      <pre><code class="language-javascript">users.updateOne(
+  { email: 'alice@example.com' },
+  { $set: { age: 29 }, $push: { tags: 'verified' } }
+);</code></pre>
+
+      <h3>updateMany(filter, update) / updateManyAsync</h3>
+      <p>Update every document that matches. Returns an array of the updated documents.</p>
+      <pre><code class="language-javascript">const updated = users.updateMany(
+  { active: false },
+  { $set: { status: 'archived' } }
+);
+console.log('Updated', updated.length, 'documents');</code></pre>
+      <p>
+        Full details of update operators (<code>$set</code>, <code>$inc</code>, <code>$push</code>, …)
+        are on the <a href="updates.html">Update Operators</a> page.
+      </p>
+
+      <h3>updateFunc / updateFuncAsync</h3>
+      <p>
+        For complex logic you can supply a function that receives the document
+        and returns the new version (or mutates it):
+      </p>
+      <pre><code class="language-javascript">users.updateFunc(
+  { role: 'member' },
+  (doc) => {
+    doc.points = (doc.points || 0) + 10;
+    doc.lastBonus = new Date().toISOString();
+    return doc;
+  },
+  { multi: true }   // update all matches
+);</code></pre>
+
+      <h2>Delete</h2>
+
+      <h3>deleteOne(filter) / deleteOneAsync</h3>
+      <p>Delete the first matching document. Returns the deleted document or <code>null</code>.</p>
+      <pre><code class="language-javascript">const removed = users.deleteOne({ email: 'bob@example.com' });</code></pre>
+
+      <h3>deleteMany(filter) / deleteManyAsync</h3>
+      <p>Delete every matching document. Returns an array of the deleted documents.</p>
+      <pre><code class="language-javascript">const removed = users.deleteMany({ active: false });
+console.log('Deleted', removed.length, 'inactive users');</code></pre>
+
+      <h2>Summary of methods</h2>
+      <table>
+        <thead>
+          <tr><th>Operation</th><th>Sync</th><th>Async</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Insert one</td><td><code>insert</code></td><td><code>insertAsync</code></td></tr>
+          <tr><td>Insert many</td><td><code>insertMany</code></td><td><code>insertManyAsync</code></td></tr>
+          <tr><td>Find one</td><td><code>findOne</code></td><td><code>findOneAsync</code></td></tr>
+          <tr><td>Find many</td><td><code>find</code></td><td><code>findAsync</code></td></tr>
+          <tr><td>Update one</td><td><code>updateOne</code></td><td><code>updateOneAsync</code></td></tr>
+          <tr><td>Update many</td><td><code>updateMany</code></td><td><code>updateManyAsync</code></td></tr>
+          <tr><td>Custom update</td><td><code>updateFunc</code></td><td><code>updateFuncAsync</code></td></tr>
+          <tr><td>Delete one</td><td><code>deleteOne</code></td><td><code>deleteOneAsync</code></td></tr>
+          <tr><td>Delete many</td><td><code>deleteMany</code></td><td><code>deleteManyAsync</code></td></tr>
+        </tbody>
+      </table>
+
+      <div class="page-footer">
+        <a href="storage.html">← Storage &amp; Part Files</a>
+        <a href="queries.html">Queries &amp; Operators →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

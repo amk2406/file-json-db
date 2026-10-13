@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aggregation – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link active" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Aggregation</div>
+
+      <h1>Aggregation</h1>
+      <p>
+        Aggregation lets you process a collection through a pipeline of stages
+        (filter, group, sort, project, count, …) and get computed results
+        instead of raw documents. The API is intentionally similar to MongoDB’s
+        aggregation pipeline, but only a focused subset of stages is implemented.
+      </p>
+
+      <h2>Basic usage</h2>
+      <pre><code class="language-javascript">const result = users.aggregate([
+  { $match: { active: true } },
+  { $group: { _id: '$role', total: { $sum: 1 } } },
+  { $sort: { total: -1 } }
+]);
+
+console.log(result);
+// → [ { _id: 'member', total: 42 }, { _id: 'admin', total: 3 }, … ]</code></pre>
+
+      <h2>Supported stages</h2>
+
+      <h3>$match</h3>
+      <p>Filter documents using the same query language as <code>find()</code>.</p>
+      <pre><code class="language-javascript">{ $match: { status: 'open', priority: { $in: ['high', 'critical'] } } }</code></pre>
+
+      <h3>$sort</h3>
+      <p>Sort the current set of documents. Values are <code>1</code> (ascending) or <code>-1</code> (descending).</p>
+      <pre><code class="language-javascript">{ $sort: { createdAt: -1, title: 1 } }</code></pre>
+
+      <h3>$limit</h3>
+      <p>Keep only the first N documents.</p>
+      <pre><code class="language-javascript">{ $limit: 10 }</code></pre>
+
+      <h3>$skip</h3>
+      <p>Skip the first N documents.</p>
+      <pre><code class="language-javascript">{ $skip: 20 }</code></pre>
+
+      <h3>$project</h3>
+      <p>Keep only the listed fields (value <code>1</code> means include).</p>
+      <pre><code class="language-javascript">{ $project: { name: 1, email: 1, 'profile.city': 1 } }</code></pre>
+
+      <h3>$group</h3>
+      <p>
+        Group documents by a key and compute accumulators.
+        The group key is given by <code>_id</code> (use a field name with a leading <code>$</code>,
+        or <code>null</code> to put everything in one group).
+      </p>
+      <p>Supported accumulators:</p>
+      <ul>
+        <li><code>$sum</code> – sum a field, or use <code>1</code> to count documents</li>
+        <li><code>$avg</code> – average of a numeric field</li>
+        <li><code>$min</code> – minimum value</li>
+        <li><code>$max</code> – maximum value</li>
+        <li><code>$push</code> – collect values into an array</li>
+      </ul>
+      <pre><code class="language-javascript">// Count users per role
+users.aggregate([
+  { $group: { _id: '$role', count: { $sum: 1 } } }
+]);
+
+// Average age and list of names per city
+users.aggregate([
+  { $group: {
+      _id: '$profile.city',
+      avgAge: { $avg: '$age' },
+      names:  { $push: '$name' }
+  }}
+]);
+
+// Single global total
+orders.aggregate([
+  { $group: { _id: null, revenue: { $sum: '$total' } } }
+]);</code></pre>
+
+      <h3>$count</h3>
+      <p>Replace the pipeline result with a single document that contains the count.</p>
+      <pre><code class="language-javascript">users.aggregate([
+  { $match: { active: true } },
+  { $count: 'activeUsers' }
+]);
+// → [ { activeUsers: 128 } ]</code></pre>
+
+      <h2>Pipeline order matters</h2>
+      <p>
+        Stages are applied from top to bottom. A typical useful order is:
+      </p>
+      <ol>
+        <li><code>$match</code> – reduce the set early</li>
+        <li><code>$group</code> – aggregate</li>
+        <li><code>$sort</code> – order the groups</li>
+        <li><code>$limit</code> / <code>$skip</code> – pagination</li>
+        <li><code>$project</code> – shape the final output</li>
+      </ol>
+
+      <h2>Real-world example – sales dashboard</h2>
+      <pre><code class="language-javascript">const orders = db.collection({ name: 'orders', autoId: true });
+
+// Top 5 products by revenue this month
+const topProducts = orders.aggregate([
+  { $match: {
+      status: 'paid',
+      createdAt: { $gte: '2026-10-01' }
+  }},
+  { $group: {
+      _id: '$productId',
+      revenue: { $sum: '$total' },
+      units:   { $sum: '$quantity' }
+  }},
+  { $sort: { revenue: -1 } },
+  { $limit: 5 }
+]);
+
+console.log(topProducts);</code></pre>
+
+      <div class="callout warning">
+        <span class="callout-title">Memory note</span>
+        Aggregation loads the matching documents into memory for the pipeline.
+        For very large collections prefer filtering with <code>$match</code> early,
+        or use ordinary <code>find</code> + application-level processing.
+      </div>
+
+      <div class="page-footer">
+        <a href="transactions.html">← Transactions</a>
+        <a href="async-api.html">Async API →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

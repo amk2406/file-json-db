@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Architecture – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link active" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Architecture</div>
+
+      <h1>Architecture</h1>
+      <p>
+        This page explains <em>how</em> file-json-db works under the hood.
+        Understanding the architecture helps you make better decisions about
+        part sizes, indexes, concurrency, and recovery.
+      </p>
+
+      <h2>High-level overview</h2>
+      <pre><code class="language-text">┌─────────────────────────────────────────────────────────┐
+│                     Your Node.js App                    │
+│                                                         │
+│   const db = new JSONDB('./data');                      │
+│   const users = db.collection({ name: 'users', ... });  │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│                      JSONDB instance                    │
+│  - owns the root directory                              │
+│  - manages Collection instances                         │
+│  - exposes backup / listCollections / dropCollection    │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+           ┌───────────────┼───────────────┐
+           ▼               ▼               ▼
+     Collection A    Collection B    Collection C
+     (users/)        (orders/)       (products/)
+           │
+           ├── index.json          (metadata + indexes)
+           ├── part-0001.json      (documents)
+           ├── part-0002.json
+           └── crash/              (isolated bad parts)</code></pre>
+
+      <h2>1. Database = Directory</h2>
+      <p>
+        When you write <code>new JSONDB('./data')</code>, the library ensures that the
+        directory <code>./data</code> exists. That directory is the entire database.
+        Everything the library knows about lives inside it.
+      </p>
+      <p>
+        There is no central server process, no network protocol, and no separate
+        binary. The database is simply files on disk that your process reads and writes.
+      </p>
+
+      <h2>2. Collection = Subdirectory</h2>
+      <p>
+        Each collection is a subdirectory of the database root.
+        A collection named <code>users</code> lives at <code>./data/users/</code>.
+      </p>
+      <p>
+        Inside that directory you will find:
+      </p>
+      <ul>
+        <li><code>index.json</code> – the collection’s metadata and indexes</li>
+        <li><code>part-0001.json</code>, <code>part-0002.json</code>, … – the actual document storage</li>
+        <li>(optionally) a <code>crash/</code> folder containing copies of parts that failed to parse</li>
+      </ul>
+
+      <h2>3. Part files – why they exist</h2>
+      <p>
+        A simple JSON-file database usually puts every document of a collection into
+        a single array inside one file. That works until the file becomes large:
+      </p>
+      <ul>
+        <li>Reading the whole file into memory becomes expensive</li>
+        <li>A single corrupted byte can make the entire collection unreadable</li>
+        <li>Atomic rewrite of a multi-megabyte file is slower and riskier</li>
+      </ul>
+      <p>
+        file-json-db therefore <strong>splits</strong> a collection across multiple part files.
+        New documents are appended to the current part. When the part reaches either
+        the configured <code>maxPartSize</code> (default 256 KB) or <code>maxRecords</code>,
+        a new part is created.
+      </p>
+      <pre><code class="language-text">users/
+├── index.json
+├── part-0001.json   ← first ~256 KB or N documents
+├── part-0002.json
+└── part-0003.json</code></pre>
+
+      <h2>4. The index (index.json)</h2>
+      <p>
+        The in-memory (and on-disk) index is the brain of a collection. It contains:
+      </p>
+      <table>
+        <thead>
+          <tr><th>Field</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>nextId</code></td><td>Next auto-increment value when <code>idType: 'auto'</code></td></tr>
+          <tr><td><code>parts</code></td><td>Map of part key → { count, size }</td></tr>
+          <tr><td><code>idIndex</code></td><td>Primary index: document ID → part key</td></tr>
+          <tr><td><code>indexes</code></td><td>Secondary indexes: field → value → [{ id, part }, …]</td></tr>
+          <tr><td><code>corruptedParts</code></td><td>Parts that previously failed to parse (skipped on load)</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Because the primary and secondary indexes live in memory after the collection
+        is loaded, equality lookups on an indexed field are O(1) (or O(k) where k is
+        the number of documents that share the same value).
+      </p>
+
+      <h2>5. Atomic writes</h2>
+      <p>
+        Every time the library needs to persist a part or the index, it follows the
+        classic safe-write pattern:
+      </p>
+      <ol>
+        <li>Write the new content to a temporary file in the same directory
+            (<code>.part-0001.json.&lt;pid&gt;.&lt;timestamp&gt;.tmp</code>)</li>
+        <li>Call <code>fs.rename</code> (or the async equivalent) to move the temp file
+            over the real file</li>
+        <li>If the rename fails (rare race on some filesystems), retry a few times</li>
+      </ol>
+      <p>
+        On POSIX systems a rename within the same filesystem is atomic.
+        If the process crashes between writing the temp file and the rename,
+        the original file remains intact. The next start simply ignores the orphaned
+        temp file.
+      </p>
+
+      <h2>6. Concurrency model</h2>
+      <p>
+        Each collection maintains an internal lock and a queue.
+        Asynchronous methods (<code>insertAsync</code>, <code>updateOneAsync</code>, …)
+        acquire the lock, perform the work, then release it so the next queued
+        operation can run.
+      </p>
+      <div class="callout warning">
+        <span class="callout-title">Single-process design</span>
+        The lock is in-process only. If two separate Node.js processes open the same
+        collection and write concurrently, you can still get data races.
+        For multi-process scenarios you need external locking or a different database.
+      </div>
+
+      <h2>7. Snapshot transactions</h2>
+      <p>
+        When you call <code>collection.startTransaction()</code> the library:
+      </p>
+      <ul>
+        <li>Deep-clones the current in-memory index</li>
+        <li>Creates an overlay for part data (parts are loaded lazily)</li>
+        <li>Routes all subsequent inserts/updates/deletes to the overlay</li>
+      </ul>
+      <p>
+        Disk is not touched until you call <code>commit()</code>.
+        <code>rollback()</code> simply discards the overlay; the original files stay exactly as they were.
+      </p>
+      <p>
+        Only one transaction may be active on a collection at a time.
+      </p>
+
+      <h2>8. Self-healing / corrupted parts</h2>
+      <p>
+        If a part file cannot be parsed (invalid JSON, truncated write, etc.):
+      </p>
+      <ul>
+        <li>In <code>errorLevel: 'debug'</code> (default) the library copies the bad file
+            once into a <code>crash/</code> subdirectory and records the part key in
+            <code>index.corruptedParts</code>.</li>
+        <li>Subsequent loads skip that part entirely.</li>
+        <li>The rest of the collection continues to work normally.</li>
+      </ul>
+      <p>
+        You can later inspect the crash copies, fix them manually, delete the
+        <code>corruptedParts</code> entry, and call <code>rebuildIndexes()</code>.
+      </p>
+
+      <h2>9. Memory model</h2>
+      <p>
+        At any moment the following live in memory for an open collection:
+      </p>
+      <ul>
+        <li>The full <code>index.json</code> structure</li>
+        <li>Any part files that have been loaded for the current query or write</li>
+      </ul>
+      <p>
+        Parts that are not needed for the current operation are not kept in memory.
+        This keeps the memory footprint proportional to the size of the indexes plus
+        the parts you actually touch, not to the entire collection.
+      </p>
+
+      <h2>Summary</h2>
+      <table>
+        <thead>
+          <tr><th>Concept</th><th>Implementation</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Database</td><td>Directory on disk</td></tr>
+          <tr><td>Collection</td><td>Subdirectory + index.json + part-*.json</td></tr>
+          <tr><td>Document storage</td><td>Chunked JSON arrays in part files</td></tr>
+          <tr><td>Primary key lookup</td><td>idIndex → part → linear scan of that part</td></tr>
+          <tr><td>Secondary indexes</td><td>In-memory maps persisted in index.json</td></tr>
+          <tr><td>Write safety</td><td>Atomic temp-file + rename with retries</td></tr>
+          <tr><td>Concurrency</td><td>Per-collection async lock/queue</td></tr>
+          <tr><td>Transactions</td><td>In-memory snapshot overlay, disk on commit</td></tr>
+          <tr><td>Corruption handling</td><td>Isolate bad parts, keep the rest usable</td></tr>
+        </tbody>
+      </table>
+
+      <div class="page-footer">
+        <a href="quick-start.html">← Quick Start</a>
+        <a href="database.html">Database →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Error Handling &amp; Recovery – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link active" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Error Handling &amp; Recovery</div>
+
+      <h1>Error Handling &amp; Recovery</h1>
+      <p>
+        file-json-db is designed to be resilient. A corrupted part file should not
+        take down the whole collection or the process. This page explains what
+        happens when things go wrong and how you can recover.
+      </p>
+
+      <h2>errorLevel option</h2>
+      <p>When you create a collection you can choose how corrupted parts are treated:</p>
+      <table>
+        <thead>
+          <tr><th>Value</th><th>Behaviour</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>'debug'</code> (default)</td>
+            <td>
+              Copy the bad part once into a <code>crash/</code> subdirectory,
+              record it in <code>index.corruptedParts</code>, emit an <code>error</code> event,
+              and skip the part from then on.
+            </td>
+          </tr>
+          <tr>
+            <td><code>'ignore'</code></td>
+            <td>
+              Silently skip the part. No copy is made and no error is emitted
+              for the parse failure.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code class="language-javascript">const logs = db.collection({
+  name: 'logs',
+  errorLevel: 'ignore'   // never surface parse errors
+});</code></pre>
+
+      <h2>What “corrupted” means</h2>
+      <p>
+        A part is considered corrupted when <code>JSON.parse</code> throws while reading it
+        (truncated file, invalid JSON, unexpected end of input, etc.).
+        Empty or whitespace-only files are treated as empty arrays, not as errors.
+      </p>
+
+      <h2>The crash/ directory</h2>
+      <p>
+        In <code>debug</code> mode the library copies a failing part exactly once:
+      </p>
+      <pre><code class="language-text">data/users/
+├── index.json
+├── part-0001.json
+├── part-0002.json
+└── crash/
+    └── part-0003.json   ← the bad file, preserved for inspection</code></pre>
+      <p>
+        The original file is left in place (so you can still examine it) but is
+        never parsed again because its key is recorded in <code>corruptedParts</code>.
+      </p>
+
+      <h2>Listening for errors</h2>
+      <pre><code class="language-javascript">db.on('error', (err) => {
+  console.error('[file-json-db]', err.message);
+  // send to your monitoring system
+});
+
+users.on('error', (err) => {
+  // collection-specific handling
+});</code></pre>
+
+      <h2>Recovering a corrupted part</h2>
+      <ol>
+        <li>Inspect the copy under <code>crash/</code> and the original part file.</li>
+        <li>Fix the JSON manually if possible, or decide to discard the data.</li>
+        <li>Remove the entry for that part from <code>index.corruptedParts</code>
+            (or delete <code>index.json</code> and let the library rebuild).</li>
+        <li>Call <code>collection.rebuildIndexes()</code>.</li>
+      </ol>
+      <pre><code class="language-javascript">// After you have fixed or removed the bad part file:
+users.rebuildIndexes();
+// The collection will re-scan all remaining parts and rebuild idIndex + secondary indexes.</code></pre>
+
+      <h2>Atomic-write failures</h2>
+      <p>
+        Writes use a temp-file + rename strategy with retries.
+        If all retries fail, an error is emitted and the original file is left intact.
+        The temporary file is cleaned up when possible.
+      </p>
+
+      <h2>Best practices</h2>
+      <ul>
+        <li>Always attach an <code>error</code> listener on the database object in long-running apps.</li>
+        <li>Keep periodic backups so you can restore a whole collection if needed.</li>
+        <li>Prefer smaller <code>maxPartSize</code> values if you want finer isolation of damage.</li>
+        <li>Never edit part files by hand while the process is running.</li>
+      </ul>
+
+      <div class="page-footer">
+        <a href="events.html">← Events</a>
+        <a href="api-reference.html">API Reference →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

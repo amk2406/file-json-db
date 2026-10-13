@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FAQ &amp; Troubleshooting – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link active" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / FAQ &amp; Troubleshooting</div>
+
+      <h1>FAQ &amp; Troubleshooting</h1>
+
+      <h2>Does file-json-db require MongoDB?</h2>
+      <p>
+        No. It is completely independent. It only uses Node.js built-in modules
+        and stores data as ordinary JSON files on disk.
+      </p>
+
+      <h2>Does it have external dependencies?</h2>
+      <p>
+        Zero runtime dependencies. The package ships only <code>db.js</code> and <code>db.d.ts</code>.
+      </p>
+
+      <h2>Can multiple processes write to the same collection?</h2>
+      <p>
+        Not safely. The lock is in-process only. If two Node processes open the
+        same collection and write concurrently you can get corrupted part files
+        or a torn index. Use a single process, or external locking, or a real
+        multi-client database.
+      </p>
+
+      <h2>My query is slow. What should I check?</h2>
+      <ul>
+        <li>Is the field you filter on listed in <code>indexes</code>?</li>
+        <li>Is the query a simple equality on a single indexed field?
+            Only then is the secondary index used.</li>
+        <li>Are you calling <code>toArray()</code> on a huge result set without <code>limit</code>?</li>
+        <li>Consider adding <code>project</code> so you do not carry large unused fields.</li>
+      </ul>
+
+      <h2>I see a crash/ folder. What happened?</h2>
+      <p>
+        A part file failed to parse. In <code>errorLevel: 'debug'</code> mode the library
+        copies the bad file once into <code>crash/</code> and marks it so it is never
+        parsed again. The rest of the collection continues to work.
+        See <a href="error-recovery.html">Error Handling &amp; Recovery</a>.
+      </p>
+
+      <h2>How do I reset a collection?</h2>
+      <pre><code class="language-javascript">db.dropCollection('users');
+// or, to keep the name but clear data:
+users.import('./empty.json', { clear: true }); // empty.json = []</code></pre>
+
+      <h2>Can I change the ID field after data exists?</h2>
+      <p>
+        Not automatically. The <code>idField</code> option is used when generating and
+        looking up IDs. If you already have documents under <code>_id</code> and you switch
+        to <code>idField: 'id'</code>, existing documents will not be found by the new field
+        until you migrate them yourself.
+      </p>
+
+      <h2>Where should I put the database directory?</h2>
+      <ul>
+        <li>CLI tools: under the user’s home or a project-local <code>./data</code></li>
+        <li>Electron: <code>app.getPath('userData')</code></li>
+        <li>Servers: a dedicated data volume with proper backup and permissions</li>
+      </ul>
+
+      <h2>Is the data human-readable?</h2>
+      <p>
+        Yes. Part files and <code>index.json</code> are ordinary JSON.
+        With <code>pretty: true</code> (the default) they are indented and easy to inspect.
+      </p>
+
+      <h2>How do I migrate from low-json-db or a single JSON file?</h2>
+      <p>
+        Export your old data as a JSON array, then:
+      </p>
+      <pre><code class="language-javascript">users.import('./old-data.json', { clear: true });</code></pre>
+
+      <h2>Something else went wrong</h2>
+      <p>
+        Attach an error listener and check the message:
+      </p>
+      <pre><code class="language-javascript">db.on('error', (err) => console.error(err));</code></pre>
+      <p>
+        Open an issue on the GitHub repository with the error message,
+        your Node version, and a minimal reproduction if possible.
+      </p>
+
+      <div class="page-footer">
+        <a href="performance.html">← Performance &amp; Limits</a>
+        <a href="../index.html">Back to Introduction</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

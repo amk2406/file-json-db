@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transactions – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link active" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Transactions</div>
+
+      <h1>Transactions</h1>
+      <p>
+        file-json-db supports <strong>snapshot transactions</strong>.
+        All changes made inside a transaction stay in memory until you call
+        <code>commit()</code>. If you call <code>rollback()</code> the original
+        files on disk are left completely untouched.
+      </p>
+
+      <h2>How it works</h2>
+      <ol>
+        <li>You call <code>collection.startTransaction()</code>.</li>
+        <li>The library deep-clones the current in-memory index and creates an overlay for part data.</li>
+        <li>Every insert / update / delete that goes through the transaction object mutates only the overlay.</li>
+        <li><code>commit()</code> writes the overlay to disk and updates the real index.</li>
+        <li><code>rollback()</code> discards the overlay; disk stays as it was.</li>
+      </ol>
+      <div class="callout warning">
+        <span class="callout-title">One transaction at a time</span>
+        Only one transaction may be active on a given collection.
+        Starting a second one while the first is still open throws an error.
+      </div>
+
+      <h2>Basic example</h2>
+      <pre><code class="language-javascript">const tx = users.startTransaction();
+
+try {
+  tx.insert({ name: 'Alice', email: 'alice@example.com' });
+  tx.insert({ name: 'Bob',   email: 'bob@example.com' });
+  tx.updateOne(
+    { name: 'Alice' },
+    { $set: { role: 'admin' } }
+  );
+
+  // Nothing has been written to disk yet
+  await tx.commit();   // now the changes become permanent
+} catch (err) {
+  await tx.rollback(); // discard everything
+  throw err;
+}</code></pre>
+
+      <h2>Transaction API</h2>
+      <p>
+        The transaction object exposes the same mutation methods as a collection:
+      </p>
+      <ul>
+        <li><code>insert</code> / <code>insertAsync</code></li>
+        <li><code>insertMany</code> / <code>insertManyAsync</code></li>
+        <li><code>updateOne</code> / <code>updateOneAsync</code></li>
+        <li><code>updateMany</code> / <code>updateManyAsync</code></li>
+        <li><code>deleteOne</code> / <code>deleteOneAsync</code></li>
+        <li><code>deleteMany</code> / <code>deleteManyAsync</code></li>
+        <li><code>updateFunc</code> / <code>updateFuncAsync</code></li>
+        <li><code>commit()</code> → Promise&lt;boolean&gt;</li>
+        <li><code>rollback()</code> → Promise&lt;boolean&gt;</li>
+      </ul>
+
+      <h2>When to use transactions</h2>
+      <ul>
+        <li>You need several related writes to succeed or fail together.</li>
+        <li>You want to be able to abort a multi-step operation cleanly.</li>
+        <li>You are implementing business logic that must stay consistent
+            (e.g. transfer points from one user to another).</li>
+      </ul>
+
+      <h2>Limitations</h2>
+      <ul>
+        <li>Transactions are per-collection, not multi-collection.</li>
+        <li>Only one active transaction per collection.</li>
+        <li>Reads performed outside the transaction still see the old data until commit.</li>
+        <li>Very large transactions (hundreds of thousands of documents) will consume significant memory because the overlay lives in RAM.</li>
+      </ul>
+
+      <div class="page-footer">
+        <a href="indexes.html">← Indexes</a>
+        <a href="aggregation.html">Aggregation →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Query Builder – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link active" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Query Builder</div>
+
+      <h1>Query Builder</h1>
+      <p>
+        When you call <code>collection.find(query)</code> you receive a <strong>QueryBuilder</strong>
+        object, not the documents themselves. The builder lets you chain extra operations
+        (limit, skip, sort, project) before the query is actually executed.
+      </p>
+
+      <h2>Basic usage</h2>
+      <pre><code class="language-javascript">const builder = users.find({ active: true });
+
+// Nothing has been read from disk yet.
+// You must call one of the terminal methods:
+
+const docs  = builder.toArray();   // array of documents
+const first = builder.first();     // first document or null
+const total = builder.count();     // number of matching documents</code></pre>
+
+      <h2>Methods</h2>
+
+      <h3>.limit(n)</h3>
+      <p>Return at most <code>n</code> documents.</p>
+      <pre><code class="language-javascript">users.find({}).limit(10).toArray();</code></pre>
+
+      <h3>.skip(n)</h3>
+      <p>Skip the first <code>n</code> matching documents (useful for pagination).</p>
+      <pre><code class="language-javascript">// Page 3, 20 items per page
+users.find({ active: true })
+  .skip(40)
+  .limit(20)
+  .toArray();</code></pre>
+
+      <h3>.sort(spec)</h3>
+      <p>
+        Sort the results. The argument is an object whose keys are field names
+        and whose values are <code>1</code> (ascending) or <code>-1</code> (descending).
+      </p>
+      <pre><code class="language-javascript">// Youngest first
+users.find({}).sort({ age: 1 }).toArray();
+
+// Newest posts first, then by title
+posts.find({}).sort({ createdAt: -1, title: 1 }).toArray();</code></pre>
+      <p>
+        Sorting is performed in memory after the matching documents have been collected.
+      </p>
+
+      <h3>.project(spec)</h3>
+      <p>
+        Include or exclude fields from the returned documents.
+        Use <code>1</code> to keep a field, <code>0</code> to drop it.
+      </p>
+      <pre><code class="language-javascript">// Only return name and email
+users.find({}).project({ name: 1, email: 1 }).toArray();
+
+// Return everything except the password hash
+users.find({}).project({ passwordHash: 0 }).toArray();</code></pre>
+
+      <h3>.toArray()</h3>
+      <p>Execute the query and return an array of documents.</p>
+
+      <h3>.first()</h3>
+      <p>Equivalent to <code>.limit(1).toArray()[0] || null</code>.</p>
+
+      <h3>.count()</h3>
+      <p>
+        Return the number of matching documents.
+        When possible the library avoids materialising the full result set.
+      </p>
+      <pre><code class="language-javascript">const totalUsers = users.find({}).count();
+const activeCount = users.find({ active: true }).count();</code></pre>
+
+      <h2>Chaining order</h2>
+      <p>
+        You can chain the methods in any order. The logical order of application is:
+      </p>
+      <ol>
+        <li>Filter (the query you passed to <code>find</code>)</li>
+        <li>Sort</li>
+        <li>Skip</li>
+        <li>Limit</li>
+        <li>Project</li>
+      </ol>
+      <pre><code class="language-javascript">const page = users
+  .find({ role: 'member', active: true })
+  .sort({ createdAt: -1 })
+  .skip(20)
+  .limit(10)
+  .project({ name: 1, email: 1, createdAt: 1 })
+  .toArray();</code></pre>
+
+      <h2>Async find</h2>
+      <p>
+        <code>findAsync</code> returns a Promise that resolves to a QueryBuilder.
+        After that you still call the synchronous terminal methods:
+      </p>
+      <pre><code class="language-javascript">const builder = await users.findAsync({ active: true });
+const docs = builder.limit(50).toArray();</code></pre>
+
+      <div class="page-footer">
+        <a href="queries.html">← Queries &amp; Operators</a>
+        <a href="updates.html">Update Operators →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

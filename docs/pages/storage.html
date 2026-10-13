@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Storage &amp; Part Files – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link active" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Storage &amp; Part Files</div>
+
+      <h1>Storage &amp; Part Files</h1>
+      <p>
+        Unlike simple single-file JSON databases, file-json-db splits each collection
+        into multiple <strong>part files</strong>. This page explains why and how that works.
+      </p>
+
+      <h2>Why part files?</h2>
+      <p>A single large JSON array has several problems:</p>
+      <ul>
+        <li>The whole file must be read into memory to change one document</li>
+        <li>A single corrupted byte can make the entire collection unreadable</li>
+        <li>Atomic rewrite of a multi-megabyte file is slow and risky</li>
+      </ul>
+      <p>
+        By splitting data into smaller chunks (parts), the library can:
+      </p>
+      <ul>
+        <li>Limit the amount of data loaded for a given operation</li>
+        <li>Isolate corruption to a single part</li>
+        <li>Keep individual writes fast</li>
+      </ul>
+
+      <h2>How parts are named</h2>
+      <p>
+        Part files are named <code>part-XXXX.json</code> where <code>XXXX</code> is a zero-padded number:
+      </p>
+      <pre><code class="language-text">part-0001.json
+part-0002.json
+part-0003.json
+…</code></pre>
+      <p>
+        The padding is done by the internal helper <code>padPart(num)</code>
+        so that lexical sorting matches numeric order.
+      </p>
+
+      <h2>When is a new part created?</h2>
+      <p>A new part is started when the current part reaches either:</p>
+      <ul>
+        <li><code>maxPartSize</code> (default 256 KB), or</li>
+        <li><code>maxRecords</code> (if you set it)</li>
+      </ul>
+      <pre><code class="language-javascript">const logs = db.collection({
+  name: 'logs',
+  maxPartSize: 128 * 1024,  // 128 KB
+  maxRecords: 500           // or 500 documents
+});</code></pre>
+
+      <h2>index.json – the collection brain</h2>
+      <p>
+        Every collection directory contains an <code>index.json</code> file that holds:
+      </p>
+      <ul>
+        <li><code>nextId</code> – next auto-increment value</li>
+        <li><code>parts</code> – map of part key → { count, size }</li>
+        <li><code>idIndex</code> – primary key → which part contains the document</li>
+        <li><code>indexes</code> – secondary indexes for the fields you configured</li>
+        <li><code>corruptedParts</code> – parts that previously failed to parse</li>
+      </ul>
+      <p>
+        This file is also written atomically (temp file + rename).
+      </p>
+
+      <h2>Atomic writes in detail</h2>
+      <p>Every time a part or the index is saved, the library does:</p>
+      <ol>
+        <li>Write the full content to a temporary file in the same directory:
+            <code>.part-0001.json.&lt;pid&gt;.&lt;timestamp&gt;.tmp</code></li>
+        <li>Call <code>fs.rename</code> (sync or async) to move the temp file over the real name</li>
+        <li>If rename fails (rare on some filesystems), retry up to 5 times with a short delay</li>
+        <li>On failure, clean up the temp file and throw</li>
+      </ol>
+      <p>
+        On POSIX systems a rename within the same filesystem is atomic.
+        If the process crashes after writing the temp file but before the rename,
+        the original file remains intact. The next start simply ignores the orphaned temp file.
+      </p>
+
+      <h2>Reading a part</h2>
+      <p>
+        When a part is needed, the library:
+      </p>
+      <ol>
+        <li>Checks whether the part is marked as corrupted → skip it</li>
+        <li>Reads the file as UTF-8 text</li>
+        <li>Parses the JSON array</li>
+        <li>On parse error (and <code>errorLevel: 'debug'</code>):
+            copy the file once to <code>crash/</code>, record it in <code>corruptedParts</code>, emit an error, return an empty array</li>
+      </ol>
+
+      <h2>Typical directory after some use</h2>
+      <pre><code class="language-text">data/
+├── users/
+│   ├── index.json
+│   ├── part-0001.json
+│   ├── part-0002.json
+│   └── crash/
+│       └── part-0003.json   ← only if a part became corrupted
+└── orders/
+    ├── index.json
+    └── part-0001.json</code></pre>
+
+      <div class="callout">
+        <span class="callout-title">Tip</span>
+        For most applications the default 256 KB part size is a good balance.
+        Increase it if you have very large documents; decrease it if you want
+        finer-grained isolation of corruption.
+      </div>
+
+      <div class="page-footer">
+        <a href="documents-ids.html">← Documents &amp; IDs</a>
+        <a href="crud.html">CRUD Operations →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

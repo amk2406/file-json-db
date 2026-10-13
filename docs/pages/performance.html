@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Performance &amp; Limits – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link active" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Performance &amp; Limits</div>
+
+      <h1>Performance &amp; Limits</h1>
+      <p>
+        file-json-db is an embedded, file-based database. It shines for small-to-medium
+        datasets and low-to-moderate concurrency. This page describes realistic
+        expectations and how to stay fast.
+      </p>
+
+      <h2>What it is good at</h2>
+      <ul>
+        <li>Thousands to low tens of thousands of documents per collection</li>
+        <li>Equality lookups on indexed fields (O(1) via the in-memory index)</li>
+        <li>Simple CRUD from a single Node.js process</li>
+        <li>CLI tools, Electron apps, small APIs, prototypes, local caches</li>
+      </ul>
+
+      <h2>What it is not designed for</h2>
+      <ul>
+        <li>Hundreds of thousands or millions of documents</li>
+        <li>High-concurrency multi-process writes</li>
+        <li>Complex analytical queries over huge data</li>
+        <li>Networked multi-client access (there is no server)</li>
+      </ul>
+
+      <h2>Indexes make a big difference</h2>
+      <p>
+        A <code>findOne</code> on an indexed field only loads the part that contains
+        the document. A full-collection scan without an index reads every part.
+      </p>
+      <pre><code class="language-javascript">// Fast – uses secondary index
+users.findOne({ email: 'alice@example.com' });
+
+// Slower – full scan
+users.find({ age: { $gte: 30 } }).toArray();</code></pre>
+      <p>
+        Index every field you frequently look up by exact value
+        (email, username, sku, status, foreign keys, …).
+      </p>
+
+      <h2>Part size tuning</h2>
+      <ul>
+        <li><strong>Smaller parts</strong> (e.g. 64–128 KB) → better isolation of corruption, more files.</li>
+        <li><strong>Larger parts</strong> (e.g. 1 MB) → fewer files, slightly more data loaded per write.</li>
+        <li>Default 256 KB is a solid middle ground for most apps.</li>
+      </ul>
+      <pre><code class="language-javascript">const logs = db.collection({
+  name: 'logs',
+  maxPartSize: 512 * 1024,
+  maxRecords: 2000
+});</code></pre>
+
+      <h2>Memory</h2>
+      <p>
+        At any moment a collection keeps in memory:
+      </p>
+      <ul>
+        <li>The full <code>index.json</code> structure (idIndex + secondary indexes)</li>
+        <li>Any part files currently being read or written</li>
+      </ul>
+      <p>
+        Parts that are not needed are not kept. Memory therefore grows mainly with
+        the size of the indexes, not with the total size of all part files.
+      </p>
+
+      <h2>Concurrency model</h2>
+      <p>
+        Async methods on the same collection are serialized through an in-process lock.
+        Multiple processes writing the same collection concurrently are <strong>not</strong> safe.
+        For multi-process scenarios use a proper database server or external locking.
+      </p>
+
+      <h2>Practical tips</h2>
+      <ul>
+        <li>Prefer <code>findOne</code> + indexed field over <code>find().first()</code> when you know there is at most one match.</li>
+        <li>Use <code>project</code> to avoid carrying large unused fields around.</li>
+        <li>Call <code>rebuildIndexes()</code> only when necessary (it scans every part).</li>
+        <li>Keep <code>pretty: false</code> in production if you want slightly smaller files and faster writes.</li>
+        <li>Batch inserts with <code>insertMany</code> instead of many individual <code>insert</code> calls.</li>
+      </ul>
+
+      <div class="page-footer">
+        <a href="real-world.html">← Real-World Examples</a>
+        <a href="faq.html">FAQ &amp; Troubleshooting →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

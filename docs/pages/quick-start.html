@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick Start – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link active" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Quick Start</div>
+
+      <h1>Quick Start</h1>
+      <p>
+        This page gets you from zero to a working database in a few minutes.
+        We keep the examples small and focused. Larger, realistic applications
+        are covered later in the <a href="real-world.html">Real-World Examples</a> section.
+      </p>
+
+      <h2>1. Create a project and install</h2>
+      <pre><code class="language-bash">mkdir my-app && cd my-app
+npm init -y
+npm install file-json-db</code></pre>
+
+      <h2>2. Create a database</h2>
+      <p>
+        A database is just a folder on disk. Create a file <code>app.js</code>:
+      </p>
+      <pre><code class="language-javascript">const { JSONDB } = require('file-json-db');
+
+// Creates (or opens) the folder ./data
+const db = new JSONDB('./data');
+
+console.log('Database ready');</code></pre>
+
+      <h2>3. Create a collection</h2>
+      <p>
+        A collection is a place to store documents of the same kind
+        (users, products, posts, etc.).
+      </p>
+      <pre><code class="language-javascript">const users = db.collection({
+  name: 'users',
+  autoId: true,          // automatically generate _id
+  indexes: ['email']     // fast lookup by email
+});</code></pre>
+
+      <h2>4. Insert a document</h2>
+      <pre><code class="language-javascript">const user = users.insert({
+  name: 'Alice',
+  email: 'alice@example.com',
+  age: 28
+});
+
+console.log(user);
+// → { name: 'Alice', email: 'alice@example.com', age: 28, _id: 1 }</code></pre>
+      <p>
+        The library added an <code>_id</code> field because we set <code>autoId: true</code>.
+      </p>
+
+      <h2>5. Find documents</h2>
+      <pre><code class="language-javascript">// Find one document
+const found = users.findOne({ email: 'alice@example.com' });
+console.log(found);
+
+// Find many documents (returns a QueryBuilder)
+const adults = users.find({ age: { $gte: 18 } }).toArray();
+console.log(adults);</code></pre>
+
+      <h2>6. Update a document</h2>
+      <pre><code class="language-javascript">users.updateOne(
+  { email: 'alice@example.com' },
+  { $set: { age: 29 } }
+);
+
+console.log(users.findOne({ email: 'alice@example.com' }));
+// age is now 29</code></pre>
+
+      <h2>7. Delete a document</h2>
+      <pre><code class="language-javascript">users.deleteOne({ email: 'alice@example.com' });
+
+console.log(users.findOne({ email: 'alice@example.com' }));
+// → null</code></pre>
+
+      <h2>8. What appears on disk?</h2>
+      <p>After running the script you will see:</p>
+      <pre><code class="language-text">my-app/
+├── app.js
+├── package.json
+└── data/
+    └── users/
+        ├── index.json       ← metadata and indexes
+        └── part-0001.json   ← the actual documents</code></pre>
+      <p>
+        Both files are ordinary JSON. You can open them in any text editor.
+      </p>
+
+      <h2>Complete minimal example</h2>
+      <p>Copy this into <code>app.js</code> and run <code>node app.js</code>:</p>
+      <pre><code class="language-javascript">const { JSONDB } = require('file-json-db');
+
+const db = new JSONDB('./data');
+
+const users = db.collection({
+  name: 'users',
+  autoId: true,
+  indexes: ['email']
+});
+
+// Insert
+users.insert({ name: 'Alice', email: 'alice@example.com', age: 28 });
+users.insert({ name: 'Bob',   email: 'bob@example.com',   age: 32 });
+
+// Find
+console.log('All users:', users.find({}).toArray());
+console.log('Alice:', users.findOne({ email: 'alice@example.com' }));
+
+// Update
+users.updateOne(
+  { email: 'alice@example.com' },
+  { $set: { age: 29 }, $push: { tags: 'admin' } }
+);
+
+// Delete
+users.deleteOne({ email: 'bob@example.com' });
+
+console.log('Remaining:', users.find({}).toArray());
+console.log('Collections:', db.listCollections());</code></pre>
+
+      <div class="callout">
+        <span class="callout-title">Next steps</span>
+        <ul style="margin-bottom: 0;">
+          <li><a href="architecture.html">Architecture</a> – understand how storage and indexes work</li>
+          <li><a href="queries.html">Queries &amp; Operators</a> – full list of query operators with long explanations</li>
+          <li><a href="real-world.html">Real-World Examples</a> – complete apps (blog, shop, Electron, CLI, …)</li>
+        </ul>
+      </div>
+
+      <div class="page-footer">
+        <a href="installation.html">← Installation</a>
+        <a href="architecture.html">Architecture →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Queries &amp; Operators – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link active" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Queries &amp; Operators</div>
+
+      <h1>Queries &amp; Operators</h1>
+      <p>
+        The query system is one of the most important parts of file-json-db.
+        It lets you express filters in a MongoDB-like language. This page explains
+        <strong>every operator in detail</strong>, including when to use it and real-world examples.
+      </p>
+
+      <h2>How a query works</h2>
+      <p>
+        When you call <code>collection.find(query)</code> or <code>findOne(query)</code>,
+        the library walks every document (or uses an index when possible) and asks:
+      </p>
+      <blockquote style="border-left: 3px solid var(--accent); padding-left: 1rem; color: var(--text-muted); margin: 1rem 0;">
+        “Does this document match the given query object?”
+      </blockquote>
+      <p>
+        The matching is performed by the internal function <code>matchQuery(doc, query)</code>
+        (you can see it in the source). It supports:
+      </p>
+      <ul>
+        <li>Simple equality</li>
+        <li>Comparison operators (<code>$eq</code>, <code>$gt</code>, …)</li>
+        <li>Logical operators (<code>$and</code>, <code>$or</code>, <code>$nor</code>)</li>
+        <li>Array and existence operators</li>
+        <li>Regular expressions</li>
+        <li>Nested field access via dot notation</li>
+      </ul>
+
+      <h2>Simple equality</h2>
+      <p>
+        The simplest query is a plain object whose keys are field names and whose values
+        are the exact values you want:
+      </p>
+      <pre><code class="language-javascript">// Find the user whose email is exactly this string
+users.findOne({ email: 'alice@acme.dev' });
+
+// Find all issues that are currently open
+issues.find({ status: 'open' }).toArray();
+
+// Empty query matches every document
+const all = users.find({}).toArray();</code></pre>
+      <p>
+        Under the hood this is equivalent to <code>{ email: { $eq: 'alice@acme.dev' } }</code>.
+      </p>
+
+      <h2>Nested fields (dot notation)</h2>
+      <p>
+        You can reach into nested objects with a dot:
+      </p>
+      <pre><code class="language-javascript">// Document shape:
+// { profile: { address: { city: 'Lagos', country: 'NG' } } }
+
+users.find({ 'profile.address.city': 'Lagos' }).toArray();
+users.findOne({ 'profile.address.country': 'NG' });</code></pre>
+      <p>
+        The helper <code>getNestedValue(doc, 'profile.address.city')</code> walks the path
+        safely and returns <code>undefined</code> if any intermediate key is missing.
+      </p>
+
+      <h2>Comparison operators</h2>
+
+      <h3><code>$eq</code> – equal</h3>
+      <p>Matches documents where the field is strictly equal to the given value (using JavaScript <code>===</code>).</p>
+      <pre><code class="language-javascript">users.find({ age: { $eq: 25 } }).toArray();
+// same as
+users.find({ age: 25 }).toArray();</code></pre>
+
+      <h3><code>$ne</code> – not equal</h3>
+      <p>Matches documents where the field is <em>not</em> equal to the value.</p>
+      <pre><code class="language-javascript">// Everyone except the admin
+users.find({ role: { $ne: 'admin' } }).toArray();</code></pre>
+
+      <h3><code>$gt</code> / <code>$gte</code> – greater than / greater-or-equal</h3>
+      <pre><code class="language-javascript">// Users older than 30
+users.find({ age: { $gt: 30 } }).toArray();
+
+// Orders with total >= 100
+orders.find({ total: { $gte: 100 } }).toArray();</code></pre>
+
+      <h3><code>$lt</code> / <code>$lte</code> – less than / less-or-equal</h3>
+      <pre><code class="language-javascript">// Products cheaper than $20
+products.find({ price: { $lt: 20 } }).toArray();
+
+// Tasks due on or before today
+tasks.find({ dueDate: { $lte: '2026-10-12' } }).toArray();</code></pre>
+
+      <h3>Combining comparisons on the same field</h3>
+      <p>You can put several operators on one field:</p>
+      <pre><code class="language-javascript">// Age between 18 and 65 (inclusive)
+users.find({
+  age: { $gte: 18, $lte: 65 }
+}).toArray();</code></pre>
+
+      <h2>Array membership operators</h2>
+
+      <h3><code>$in</code> – value is one of several</h3>
+      <p>
+        Matches if the field’s value appears in the provided array.
+        Extremely useful for “status is open <em>or</em> in-progress”.
+      </p>
+      <pre><code class="language-javascript">// Issues that are still active
+issues.find({
+  status: { $in: ['open', 'in-progress', 'review'] }
+}).toArray();
+
+// Users with one of these roles
+users.find({
+  role: { $in: ['admin', 'moderator'] }
+}).toArray();</code></pre>
+
+      <h3><code>$nin</code> – value is <em>not</em> in the list</h3>
+      <pre><code class="language-javascript">// Everything except closed or cancelled
+issues.find({
+  status: { $nin: ['closed', 'cancelled'] }
+}).toArray();</code></pre>
+
+      <h2>Existence and type</h2>
+
+      <h3><code>$exists</code></h3>
+      <p>
+        Checks whether a field is present on the document (i.e. not <code>undefined</code>).
+        Note that a field set to <code>null</code> is still considered to exist.
+      </p>
+      <pre><code class="language-javascript">// Users who have a phone number recorded
+users.find({ phone: { $exists: true } }).toArray();
+
+// Users who never set a phone number
+users.find({ phone: { $exists: false } }).toArray();</code></pre>
+
+      <h3><code>$type</code></h3>
+      <p>
+        Matches the JavaScript-style type of the value.
+        Possible values: <code>'string'</code>, <code>'number'</code>, <code>'boolean'</code>,
+        <code>'object'</code>, <code>'array'</code>, <code>'null'</code>.
+      </p>
+      <pre><code class="language-javascript">// Documents where age is stored as a number (not a string)
+users.find({ age: { $type: 'number' } }).toArray();
+
+// Tags field is an array
+posts.find({ tags: { $type: 'array' } }).toArray();</code></pre>
+
+      <h2>Regular expressions – <code>$regex</code></h2>
+      <p>
+        Matches a string field against a regular expression.
+        You can pass either a string or a real <code>RegExp</code> object.
+        Optional flags are supplied via <code>$options</code>.
+      </p>
+      <pre><code class="language-javascript">// Usernames that start with "admin"
+users.find({
+  username: { $regex: '^admin' }
+}).toArray();
+
+// Case-insensitive search for "error" in the title
+issues.find({
+  title: { $regex: 'error', $options: 'i' }
+}).toArray();
+
+// Using a real RegExp
+users.find({
+  email: { $regex: /@acme\.dev$/i }
+}).toArray();</code></pre>
+
+      <h2>Array-specific operators</h2>
+
+      <h3><code>$size</code></h3>
+      <p>Matches arrays that have exactly the given length.</p>
+      <pre><code class="language-javascript">// Posts that have exactly 3 tags
+posts.find({ tags: { $size: 3 } }).toArray();</code></pre>
+
+      <h3><code>$elemMatch</code></h3>
+      <p>
+        Matches documents where at least one element of an array satisfies the given sub-query.
+        Useful when the array contains objects.
+      </p>
+      <pre><code class="language-javascript">// Orders that contain at least one item with quantity > 5
+orders.find({
+  items: {
+    $elemMatch: { quantity: { $gt: 5 } }
+  }
+}).toArray();
+
+// Users who have a tag that is exactly "admin"
+users.find({
+  tags: { $elemMatch: { $eq: 'admin' } }
+}).toArray();</code></pre>
+
+      <h2>Logical operators</h2>
+
+      <h3><code>$and</code></h3>
+      <p>
+        All of the sub-queries must match. You rarely need to write <code>$and</code>
+        explicitly because top-level keys are already ANDed together, but it is useful
+        when you need multiple conditions on the same field or nested logic.
+      </p>
+      <pre><code class="language-javascript">users.find({
+  $and: [
+    { age: { $gte: 18 } },
+    { age: { $lte: 65 } },
+    { active: true }
+  ]
+}).toArray();</code></pre>
+
+      <h3><code>$or</code></h3>
+      <p>At least one of the sub-queries must match.</p>
+      <pre><code class="language-javascript">// High-priority issues OR issues assigned to the current user
+issues.find({
+  $or: [
+    { priority: 'high' },
+    { assigneeId: currentUserId }
+  ]
+}).toArray();</code></pre>
+
+      <h3><code>$nor</code></h3>
+      <p>None of the sub-queries may match (logical NOR).</p>
+      <pre><code class="language-javascript">// Issues that are neither closed nor cancelled
+issues.find({
+  $nor: [
+    { status: 'closed' },
+    { status: 'cancelled' }
+  ]
+}).toArray();</code></pre>
+
+      <h2>Real-world example: filtering a product catalog</h2>
+      <pre><code class="language-javascript">const products = db.collection({
+  name: 'products',
+  autoId: true,
+  indexes: ['category', 'sku', 'brand']
+});
+
+// Complex storefront filter:
+// - category is "electronics" or "computers"
+// - price between 50 and 500
+// - still in stock
+// - brand is not "Generic"
+// - name contains "wireless" (case-insensitive)
+
+const results = products.find({
+  category: { $in: ['electronics', 'computers'] },
+  price: { $gte: 50, $lte: 500 },
+  stock: { $gt: 0 },
+  brand: { $ne: 'Generic' },
+  name: { $regex: 'wireless', $options: 'i' }
+}).sort({ price: 1 }).limit(20).toArray();</code></pre>
+
+      <h2>Performance notes</h2>
+      <ul>
+        <li>
+          When the query is a simple equality on a field that has a secondary index
+          <strong>and</strong> the query contains only that one field, the library uses the index
+          and avoids a full scan.
+        </li>
+        <li>
+          Any other combination (multiple fields, range operators, <code>$or</code>, etc.)
+          currently falls back to a full scan of the relevant parts.
+        </li>
+        <li>
+          For large collections, keep the most selective filters on indexed fields
+          and try to put them first when possible.
+        </li>
+      </ul>
+
+      <div class="callout">
+        <span class="callout-title">See also</span>
+        <a href="query-builder.html">Query Builder</a> (limit, skip, sort, project, count) ·
+        <a href="indexes.html">Indexes</a>
+      </div>
+
+      <div class="page-footer">
+        <a href="crud.html">← CRUD Operations</a>
+        <a href="query-builder.html">Query Builder →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

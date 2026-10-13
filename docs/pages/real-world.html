@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-World Examples – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link active" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Real-World Examples</div>
+
+      <h1>Real-World Examples</h1>
+      <p>
+        The Quick Start showed the basic API. This page walks through complete,
+        realistic applications you can adapt for your own projects.
+      </p>
+
+      <h2>1. Issue / task tracker</h2>
+      <p>
+        A small team tracker with users and issues, indexes, and status workflows.
+      </p>
+      <pre><code class="language-javascript">const { JSONDB } = require('file-json-db');
+const path = require('path');
+
+const db = new JSONDB(path.join(__dirname, 'data'));
+
+const users = db.collection({
+  name: 'users',
+  autoId: true,
+  indexes: ['email', 'username']
+});
+
+const issues = db.collection({
+  name: 'issues',
+  autoId: true,
+  idType: 'uuid',
+  indexes: ['status', 'assigneeId', 'priority']
+});
+
+// Seed team (run once)
+if (users.find({}).count() === 0) {
+  users.insertMany([
+    { username: 'alice', email: 'alice@acme.dev', role: 'lead', active: true },
+    { username: 'bob',   email: 'bob@acme.dev',   role: 'dev',  active: true },
+    { username: 'carol', email: 'carol@acme.dev', role: 'qa',   active: true }
+  ]);
+}
+
+const alice = users.findOne({ username: 'alice' });
+const bob   = users.findOne({ username: 'bob' });
+
+// Create an issue
+const bug = issues.insert({
+  title: 'Login crashes on Safari',
+  description: 'TypeError when submitting the form on iOS Safari 17',
+  status: 'open',
+  priority: 'high',
+  assigneeId: bob._id,
+  reporterId: alice._id,
+  labels: ['bug', 'frontend'],
+  createdAt: new Date().toISOString()
+});
+
+// Move to in-progress
+issues.updateOne(
+  { _id: bug._id },
+  {
+    $set: {
+      status: 'in-progress',
+      updatedAt: new Date().toISOString()
+    },
+    $push: { labels: 'ios' }
+  }
+);
+
+// Dashboard queries
+const urgent = issues.find({
+  status: { $in: ['open', 'in-progress'] },
+  priority: 'high'
+}).sort({ createdAt: -1 }).toArray();
+
+const byStatus = issues.aggregate([
+  { $group: { _id: '$status', count: { $sum: 1 } } }
+]);
+
+console.log('Urgent issues:', urgent.length);
+console.log('By status:', byStatus);</code></pre>
+
+      <h2>2. Simple blog / CMS</h2>
+      <pre><code class="language-javascript">const posts = db.collection({
+  name: 'posts',
+  autoId: true,
+  indexes: ['slug', 'authorId', 'status']
+});
+
+const comments = db.collection({
+  name: 'comments',
+  autoId: true,
+  indexes: ['postId']
+});
+
+// Publish a post
+const post = posts.insert({
+  title: 'Introducing file-json-db',
+  slug: 'introducing-file-json-db',
+  body: 'A resilient zero-dependency JSON database…',
+  authorId: alice._id,
+  status: 'published',
+  tags: ['nodejs', 'database'],
+  publishedAt: new Date().toISOString(),
+  views: 0
+});
+
+// Increment view count
+posts.updateOne(
+  { slug: 'introducing-file-json-db' },
+  { $inc: { views: 1 } }
+);
+
+// Add a comment
+comments.insert({
+  postId: post._id,
+  author: 'Reader',
+  body: 'Great article!',
+  createdAt: new Date().toISOString()
+});
+
+// Load post + its comments
+const article = posts.findOne({ slug: 'introducing-file-json-db' });
+const articleComments = comments.find({ postId: article._id })
+  .sort({ createdAt: 1 })
+  .toArray();</code></pre>
+
+      <h2>3. Inventory / small e-commerce</h2>
+      <pre><code class="language-javascript">const products = db.collection({
+  name: 'products',
+  autoId: true,
+  indexes: ['sku', 'category']
+});
+
+const orders = db.collection({
+  name: 'orders',
+  autoId: true,
+  idType: 'uuid',
+  indexes: ['status', 'customerEmail']
+});
+
+// Stock a product
+products.insert({
+  sku: 'WIDGET-001',
+  name: 'Wireless Widget',
+  category: 'electronics',
+  price: 29.99,
+  stock: 100
+});
+
+// Place an order inside a transaction so stock and order stay consistent
+async function placeOrder(sku, qty, customerEmail) {
+  const product = products.findOne({ sku });
+  if (!product || product.stock < qty) {
+    throw new Error('Insufficient stock');
+  }
+
+  const txProducts = products.startTransaction();
+  const txOrders   = orders.startTransaction(); // note: separate collections
+
+  try {
+    // In a real multi-collection transaction you would need external coordination.
+    // Here we keep the critical stock update transactional on the products side.
+    txProducts.updateOne(
+      { sku },
+      { $inc: { stock: -qty } }
+    );
+
+    const order = orders.insert({
+      customerEmail,
+      items: [{ sku, qty, price: product.price }],
+      total: product.price * qty,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    });
+
+    await txProducts.commit();
+    return order;
+  } catch (err) {
+    await txProducts.rollback();
+    throw err;
+  }
+}</code></pre>
+      <div class="callout warning">
+        <span class="callout-title">Note on multi-collection transactions</span>
+        Transactions are per-collection. For true multi-collection atomicity
+        you need application-level compensation or a different database.
+      </div>
+
+      <h2>4. CLI configuration / local cache</h2>
+      <pre><code class="language-javascript">// config-store.js – used by a CLI tool
+const { JSONDB } = require('file-json-db');
+const os = require('os');
+const path = require('path');
+
+const db = new JSONDB(path.join(os.homedir(), '.my-cli'));
+
+const settings = db.collection({
+  name: 'settings',
+  autoId: false   // we use fixed keys
+});
+
+function getSetting(key, defaultValue) {
+  const doc = settings.findOne({ key });
+  return doc ? doc.value : defaultValue;
+}
+
+function setSetting(key, value) {
+  const existing = settings.findOne({ key });
+  if (existing) {
+    settings.updateOne({ key }, { $set: { value, updatedAt: Date.now() } });
+  } else {
+    settings.insert({ key, value, updatedAt: Date.now() });
+  }
+}
+
+module.exports = { getSetting, setSetting };</code></pre>
+
+      <h2>5. Electron main-process store</h2>
+      <pre><code class="language-javascript">// main.js (Electron)
+const { app } = require('electron');
+const { JSONDB } = require('file-json-db');
+const path = require('path');
+
+const db = new JSONDB(path.join(app.getPath('userData'), 'db'));
+
+const windows = db.collection({
+  name: 'windowState',
+  autoId: false
+});
+
+function saveWindowState(bounds) {
+  const existing = windows.findOne({ id: 'main' });
+  if (existing) {
+    windows.updateOne({ id: 'main' }, { $set: { bounds } });
+  } else {
+    windows.insert({ id: 'main', bounds });
+  }
+}
+
+function loadWindowState() {
+  const doc = windows.findOne({ id: 'main' });
+  return doc ? doc.bounds : { width: 1200, height: 800 };
+}</code></pre>
+
+      <h2>6. Express REST API sketch</h2>
+      <pre><code class="language-javascript">const express = require('express');
+const { JSONDB } = require('file-json-db');
+
+const app = express();
+app.use(express.json());
+
+const db = new JSONDB('./data');
+const users = db.collection({
+  name: 'users',
+  autoId: true,
+  indexes: ['email']
+});
+
+app.get('/users', async (req, res) => {
+  const list = (await users.findAsync({}))
+    .project({ passwordHash: 0 })
+    .toArray();
+  res.json(list);
+});
+
+app.post('/users', async (req, res) => {
+  const existing = await users.findOneAsync({ email: req.body.email });
+  if (existing) return res.status(409).json({ error: 'Email taken' });
+
+  const user = await users.insertAsync({
+    ...req.body,
+    createdAt: new Date().toISOString()
+  });
+  res.status(201).json(user);
+});
+
+app.patch('/users/:id', async (req, res) => {
+  const updated = await users.updateOneAsync(
+    { _id: Number(req.params.id) },
+    { $set: req.body }
+  );
+  if (!updated) return res.status(404).end();
+  res.json(updated);
+});
+
+app.listen(3000);</code></pre>
+
+      <div class="page-footer">
+        <a href="api-reference.html">← API Reference</a>
+        <a href="performance.html">Performance &amp; Limits →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

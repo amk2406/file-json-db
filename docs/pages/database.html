@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Database – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link active" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Database</div>
+
+      <h1>Database</h1>
+      <p>
+        The <code>JSONDB</code> class is the entry point of the library.
+        A database is simply a directory on the filesystem. Everything the library
+        stores lives inside that directory.
+      </p>
+
+      <h2>Creating a database</h2>
+      <pre><code class="language-javascript">const { JSONDB } = require('file-json-db');
+
+// Explicit path
+const db = new JSONDB('./data');
+
+// Absolute path
+const db2 = new JSONDB('/var/lib/myapp/db');
+
+// Default path → ./database
+const db3 = new JSONDB();</code></pre>
+      <p>
+        If the directory does not exist, it is created automatically
+        (including any missing parent directories).
+      </p>
+
+      <h2>Database methods</h2>
+      <table>
+        <thead>
+          <tr><th>Method</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>collection(nameOrOptions)</code></td><td>Get or create a collection</td></tr>
+          <tr><td><code>createCollection(nameOrOptions)</code></td><td>Alias of <code>collection()</code></td></tr>
+          <tr><td><code>listCollections()</code></td><td>Return an array of collection names found on disk</td></tr>
+          <tr><td><code>dropCollection(name)</code></td><td>Delete a collection directory and its files</td></tr>
+          <tr><td><code>unloadCollection(name)</code></td><td>Remove a collection from memory (files stay on disk)</td></tr>
+          <tr><td><code>backup(path?)</code></td><td>Copy all collections to a backup folder (sync)</td></tr>
+          <tr><td><code>backupAsync(path?)</code></td><td>Same, asynchronous</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Getting a collection</h2>
+      <p>You can pass either a string or an options object:</p>
+      <pre><code class="language-javascript">// Simple
+const users = db.collection('users');
+
+// With options
+const users = db.collection({
+  name: 'users',
+  autoId: true,
+  idType: 'auto',
+  indexes: ['email', 'username'],
+  pretty: true,
+  maxPartSize: 256 * 1024,
+  maxRecords: 1000,
+  errorLevel: 'debug'
+});</code></pre>
+      <p>
+        Calling <code>collection()</code> with the same name again returns the already
+        loaded instance (it does not create a second one).
+      </p>
+
+      <h2>Listing collections</h2>
+      <pre><code class="language-javascript">console.log(db.listCollections());
+// → ['users', 'orders', 'products']</code></pre>
+      <p>
+        This reads the filesystem. Only directories that look like collections
+        (contain part files or an index) are returned.
+      </p>
+
+      <h2>Dropping a collection</h2>
+      <pre><code class="language-javascript">db.dropCollection('users');
+// The entire ./data/users/ directory is removed</code></pre>
+      <div class="callout warning">
+        <span class="callout-title">Destructive</span>
+        <code>dropCollection</code> permanently deletes the collection folder and all of its part files.
+        There is no recycle bin.
+      </div>
+
+      <h2>Unloading a collection</h2>
+      <p>
+        Sometimes you want to free memory without deleting data:
+      </p>
+      <pre><code class="language-javascript">db.unloadCollection('users');
+// The collection is removed from the in-memory map.
+// Files on disk remain untouched.
+// Next call to db.collection('users') will load it again.</code></pre>
+
+      <h2>Events on the database</h2>
+      <p>
+        <code>JSONDB</code> extends Node’s <code>EventEmitter</code>.
+        You can listen for events that bubble up from any collection:
+      </p>
+      <pre><code class="language-javascript">db.on('error', (err) => {
+  console.error('[DB ERROR]', err.message);
+});
+
+db.on('insert', (info) => {
+  console.log('Inserted into', info.collection);
+});
+
+db.on('backup', (info) => {
+  console.log('Backup written to', info.path);
+});
+
+db.on('index-rebuilt', (info) => {
+  console.log('Index rebuilt for', info.collection);
+});</code></pre>
+
+      <h2>Multiple databases</h2>
+      <p>
+        You can open as many databases as you like. Each is completely independent:
+      </p>
+      <pre><code class="language-javascript">const mainDb  = new JSONDB('./data/main');
+const cacheDb = new JSONDB('./data/cache');
+const logsDb  = new JSONDB('./data/logs');</code></pre>
+
+      <div class="page-footer">
+        <a href="architecture.html">← Architecture</a>
+        <a href="collections.html">Collections →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>

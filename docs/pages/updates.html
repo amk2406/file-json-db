@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Update Operators – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+            <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link active" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Update Operators</div>
+
+      <h1>Update Operators</h1>
+      <p>
+        Update operators tell the library <em>how</em> to change a document.
+        They are passed as the second argument to <code>updateOne</code>, <code>updateMany</code>,
+        and their async counterparts.
+      </p>
+
+      <h2>$set – set field values</h2>
+      <p>Replace the value of one or more fields. Creates the field if it does not exist.</p>
+      <pre><code class="language-javascript">users.updateOne(
+  { email: 'alice@example.com' },
+  { $set: { age: 29, lastLogin: new Date().toISOString() } }
+);
+
+// Nested fields work with dot notation
+users.updateOne(
+  { _id: 1 },
+  { $set: { 'profile.city': 'Lagos', 'profile.country': 'NG' } }
+);</code></pre>
+
+      <h2>$inc – increment a number</h2>
+      <p>Add a number to an existing numeric field (or start from 0 if missing).</p>
+      <pre><code class="language-javascript">// Give Alice 10 more points
+users.updateOne(
+  { name: 'Alice' },
+  { $inc: { points: 10 } }
+);
+
+// Decrease stock by 1
+products.updateOne(
+  { sku: 'WIDGET-001' },
+  { $inc: { stock: -1 } }
+);</code></pre>
+
+      <h2>$push – append to an array</h2>
+      <p>Push a value onto the end of an array field. Creates the array if it does not exist.</p>
+      <pre><code class="language-javascript">users.updateOne(
+  { name: 'Alice' },
+  { $push: { tags: 'admin' } }
+);
+
+// Push an object
+orders.updateOne(
+  { _id: orderId },
+  { $push: { events: { type: 'shipped', at: new Date().toISOString() } } }
+);</code></pre>
+
+      <h2>$pull – remove from an array</h2>
+      <p>
+        Remove elements that match a value or a sub-document.
+      </p>
+      <pre><code class="language-javascript">// Remove a simple value
+users.updateOne(
+  { name: 'Alice' },
+  { $pull: { tags: 'admin' } }
+);
+
+// Remove objects that match certain fields
+orders.updateOne(
+  { _id: orderId },
+  { $pull: { items: { productId: 42 } } }
+);</code></pre>
+
+      <h2>$unset – remove a field</h2>
+      <p>Delete a field from the document.</p>
+      <pre><code class="language-javascript">users.updateOne(
+  { name: 'Alice' },
+  { $unset: { temporaryToken: 1 } }
+);
+
+// Nested field
+users.updateOne(
+  { _id: 1 },
+  { $unset: { 'profile.oldAddress': 1 } }
+);</code></pre>
+
+      <h2>Combining operators</h2>
+      <p>You can use several operators in a single update:</p>
+      <pre><code class="language-javascript">users.updateOne(
+  { email: 'alice@example.com' },
+  {
+    $set:  { lastLogin: new Date().toISOString() },
+    $inc:  { loginCount: 1 },
+    $push: { loginHistory: new Date().toISOString() },
+    $unset: { resetToken: 1 }
+  }
+);</code></pre>
+
+      <h2>updateFunc – custom logic</h2>
+      <p>
+        When the operators are not enough, pass a function that receives the document
+        and returns the modified document:
+      </p>
+      <pre><code class="language-javascript">users.updateFunc(
+  { role: 'member' },
+  (doc) => {
+    doc.points = (doc.points || 0) + 5;
+    if (doc.points >= 100) {
+      doc.role = 'gold';
+      doc.tags = doc.tags || [];
+      if (!doc.tags.includes('gold')) doc.tags.push('gold');
+    }
+    return doc;
+  },
+  { multi: true }   // apply to all matches; omit or false for first only
+);</code></pre>
+
+      <div class="callout">
+        <span class="callout-title">Indexes stay in sync</span>
+        After any update the library automatically refreshes the secondary indexes
+        for the affected documents.
+      </div>
+
+      <div class="page-footer">
+        <a href="query-builder.html">← Query Builder</a>
+        <a href="indexes.html">Indexes →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+
+</body>
+</html>
