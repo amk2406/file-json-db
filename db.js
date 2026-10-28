@@ -109,6 +109,96 @@ function padPart(num) {
   return String(num).padStart(4, '0');
 }
 
+/**
+ * Apply MongoDB-style projection.
+ * - Inclusion mode: only listed fields with truthy values are kept (+ _id by default)
+ * - Exclusion mode: listed fields with 0/false are removed
+ * - Mixed: exclusion wins
+ * - _id is included by default unless explicitly _id: 0
+ */
+function applyProjection(doc, projection) {
+  if (!projection || typeof projection !== 'object') return doc;
+
+  const keys = Object.keys(projection);
+  if (keys.length === 0) return doc;
+
+  // Detect if any exclusion is present
+  let hasExclusion = false;
+  let hasInclusion = false;
+  for (const k of keys) {
+    if (k === '_id') continue;
+    if (projection[k]) hasInclusion = true;
+    else hasExclusion = true;
+  }
+
+  const includeId = projection._id !== 0 && projection._id !== false;
+
+  // Pure exclusion (or mixed → exclusion wins)
+  if (hasExclusion && !hasInclusion) {
+    const result = {};
+    for (const [k, v] of Object.entries(doc)) {
+      if (k === '_id') {
+        if (includeId) result._id = v;
+        continue;
+      }
+      if (projection[k] === 0 || projection[k] === false) continue;
+      result[k] = v;
+    }
+    // Also handle nested exclusions via getNestedValue paths if needed later
+    return result;
+  }
+
+  // Inclusion mode (or mixed → we still only include the positive ones)
+  const result = {};
+  if (includeId && doc._id !== undefined) {
+    result._id = doc._id;
+  }
+  for (const [k, v] of Object.entries(projection)) {
+    if (k === '_id') continue;
+    if (v) {
+      const val = getNestedValue(doc, k);
+      if (val !== undefined) {
+        // Support simple nested paths
+        if (k.includes('.')) {
+          setNestedValue(result, k, val);
+        } else {
+          result[k] = val;
+        }
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * Simple case-insensitive contains search across fields.
+ */
+function matchSearch(doc, options) {
+  if (!options || !options.keyword) return true;
+  const keyword = String(options.keyword);
+  const caseInsensitive = options.caseInsensitive !== false;
+  const needle = caseInsensitive ? keyword.toLowerCase() : keyword;
+
+  let fields = options.fields;
+  const exclude = Array.isArray(options.exclude) ? new Set(options.exclude) : new Set();
+
+  // If no fields specified → search all own enumerable string/number fields
+  if (!fields || !Array.isArray(fields) || fields.length === 0) {
+    fields = Object.keys(doc).filter(k => !exclude.has(k));
+  } else {
+    fields = fields.filter(f => !exclude.has(f));
+  }
+
+  for (const field of fields) {
+    const val = getNestedValue(doc, field);
+    if (val == null) continue;
+    const str = String(val);
+    const hay = caseInsensitive ? str.toLowerCase() : str;
+    if (hay.includes(needle)) return true;
+  }
+  return false;
+}
+
 // ====================== QUERY MATCHER ======================
 
 function matchQuery(doc, query) {
@@ -171,9 +261,10 @@ function matchQuery(doc, query) {
 // ====================== QUERY BUILDER ======================
 
 class QueryBuilder {
-  constructor(collection, query = {}) {
+  constructor(collection, query = {}, searchOptions = null) {
     this.collection = collection;
     this.query = query;
+    this._searchOptions = searchOptions; // null = normal find, object = search mode
     this._limit = null;
     this._skip = 0;
     this._sort = null;
@@ -233,6 +324,8 @@ class Collection extends EventEmitter {
     this.maxPartSize = options.maxPartSize || DEFAULT_MAX_PART_SIZE;
     this.maxRecords = typeof options.maxRecords === 'number' ? options.maxRecords : null;
     this.errorLevel = options.errorLevel === 'ignore' ? 'ignore' : 'debug';
+    // keepIdIndex: false (default) → for auto IDs store compact ranges instead of every id
+    this.keepIdIndex = options.keepIdIndex === true;
 
     this.collectionPath = path.join(dbPath, this.name);
     this.indexPath = path.join(this.collectionPath, 'index.json');
@@ -696,6 +789,25 @@ class Collection extends EventEmitter {
   }
 
   /**
+   * Simple keyword search across fields in the collection.
+   * Returns a QueryBuilder so you can chain .limit().sort().project().toArray()
+   *
+   * @param {Object} options
+   * @param {string} options.keyword          - Text term
+   * @param {string[]} [options.fields]       - Fields to search (default: all)
+   * @param {string[]} [options.exclude]      - Fields to skip
+   * @param {boolean}  [options.caseInsensitive=true]
+   */
+  search(options = {}) {
+    ensureDirSync(this.collectionPath);
+    return new QueryBuilder(this, {}, options);
+  }
+
+  searchAsync(options = {}) {
+    return Promise.resolve(this.search(options));
+  }
+
+  /**
    * Resolve documents from a list of { id, part } index entries.
    * Returns matching docs (after full query filter).
    */
@@ -725,6 +837,11 @@ class Collection extends EventEmitter {
   _executeQuery(builder) {
     const query = builder.query || {};
     ensureDirSync(this.collectionPath);
+
+    // Search mode → always full scan with search matcher
+    if (builder._searchOptions) {
+      return this._fullScan(builder);
+    }
 
     // --- Fast path 1: exact lookup by primary id ---
     const idVal = query[this.idField];
@@ -788,19 +905,29 @@ class Collection extends EventEmitter {
     if (builder._skip) final = final.slice(builder._skip);
     if (builder._limit != null) final = final.slice(0, builder._limit);
     if (builder._project) {
-      final = final.map(doc => {
-        const projected = {};
-        for (const [k, v] of Object.entries(builder._project)) {
-          if (v) projected[k] = getNestedValue(doc, k);
-        }
-        return projected;
-      });
+      final = final.map(doc => applyProjection(doc, builder._project));
     }
     return final;
   }
 
   /** Fast count – avoids materialising documents when possible. */
   _countQuery(builder) {
+    // Search mode → full scan count
+    if (builder._searchOptions) {
+      let count = 0;
+      const parts = this._listPartFiles();
+      for (const partName of parts) {
+        const docs = this._loadPartSync(partName);
+        if (!docs) continue;
+        for (const doc of docs) {
+          if (matchSearch(doc, builder._searchOptions)) count++;
+        }
+      }
+      if (builder._skip) count = Math.max(0, count - builder._skip);
+      if (builder._limit != null) count = Math.min(count, builder._limit);
+      return count;
+    }
+
     const query = builder.query || {};
     // Empty query → sum part counts from index
     if (!query || Object.keys(query).length === 0) {
@@ -841,6 +968,7 @@ class Collection extends EventEmitter {
   _fullScan(builder) {
     const results = [];
     const parts = this._listPartFiles();
+    const isSearch = !!builder._searchOptions;
 
     for (const partName of parts) {
       const partKey = partName.replace('part-', '').replace('.json', '');
@@ -850,8 +978,14 @@ class Collection extends EventEmitter {
       if (!docs) continue;
 
       for (const doc of docs) {
-        if (matchQuery(doc, builder.query)) {
-          results.push(doc);
+        if (isSearch) {
+          if (matchSearch(doc, builder._searchOptions)) {
+            results.push(doc);
+          }
+        } else {
+          if (matchQuery(doc, builder.query)) {
+            results.push(doc);
+          }
         }
       }
     }
@@ -1789,13 +1923,7 @@ CollectionProto.aggregate = function (pipeline = []) {
     } else if (stage.$skip) {
       docs = docs.slice(stage.$skip);
     } else if (stage.$project) {
-      docs = docs.map(doc => {
-        const projected = {};
-        for (const [k, v] of Object.entries(stage.$project)) {
-          if (v) projected[k] = getNestedValue(doc, k);
-        }
-        return projected;
-      });
+      docs = docs.map(doc => applyProjection(doc, stage.$project));
     } else if (stage.$group) {
       const groups = {};
       const idExpr = stage.$group._id;
