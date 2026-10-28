@@ -50,7 +50,16 @@ export interface SearchOptions {
 }
 
 /**
- * Main database class. A database is simply a directory on disk.
+ * file-json-db
+ * A resilient, zero-dependency, MongoDB-style JSON document database for Node.js.
+ * v1.4.0 - Real snapshot transactions, batched insertMany (maxRecords / part size)
+ *
+ * - Collection = Folder
+ * - Data split into multiple part files
+ * - Smart index kept in memory (idIndex + multi-value secondary indexes)
+ * - Automatic recovery & self-healing
+ * - Snapshot transactions with rollback
+ * - Same familiar API style as low-json-db
  */
 export declare class JSONDB extends EventEmitter {
   constructor(dbPath?: string);
@@ -66,6 +75,23 @@ export declare class JSONDB extends EventEmitter {
   /** Unload a collection from memory (files stay on disk) */
   unloadCollection(name: string): boolean;
   /** Create a backup of the whole database */
+  /**
+   * Backup layout (no extra timestamp folder, no index.json):
+   *
+   *   backupRoot/
+   *     users/
+   *       part-0001.json
+   *       part-0002.json
+   *     orders/
+   *       part-0001.json
+   *
+   * Only collection part files are written. index.json and crash/ are skipped.
+   * Optionally pack each collection into a single .json file when options.pack === true.
+   *
+   * @param {string} backupRoot
+   * @param {{ pack?: boolean }} [options]
+   * @returns {string|null} path to backupRoot on success
+   */
   backup(backupRoot?: string): string | null;
   backupAsync(backupRoot?: string): Promise<string | null>;
 
@@ -90,6 +116,13 @@ export declare class Collection extends EventEmitter {
   // ----- Insert -----
   insert(document: object): object | null;
   insertAsync(document: object): Promise<object | null>;
+  /**
+   * Batched insertMany:
+   * - Assigns IDs once
+   * - Splits docs by maxRecords (if set) else by estimated JSON size vs maxPartSize
+   * - Fills existing parts that still have room, then creates new parts
+   * - Writes each part once and saves the index once at the end
+   */
   insertMany(documents: object[]): object[];
   insertManyAsync(documents: object[]): Promise<object[]>;
 
@@ -126,6 +159,14 @@ export declare class Collection extends EventEmitter {
   deleteManyAsync(filter: object): Promise<object[]>;
 
   // ----- Advanced -----
+  /**
+   * updateFunc - Find documents by filter, pass each to a user function,
+   * and save whatever the function returns.
+   *
+   * @param {object} filter
+   * @param {function} fn - (doc) => newDoc
+   * @param {object} [options] - { multi: true/false }
+   */
   updateFunc(filter: object, fn: (doc: object) => object, options?: { multi?: boolean }): object | object[] | null;
   updateFuncAsync(filter: object, fn: (doc: object) => object, options?: { multi?: boolean }): Promise<object | object[] | null>;
 
