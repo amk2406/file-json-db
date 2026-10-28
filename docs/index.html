@@ -26,7 +26,7 @@
     <aside class="sidebar">
             <div class="logo-area">
         <div class="logo-placeholder">FJ</div>
-        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.5.0 · docs</small></div>
       </div>
 
       <div class="search-box">
@@ -58,6 +58,7 @@
           <a class="nav-link" href="pages/crud.html">CRUD Operations</a>
           <a class="nav-link" href="pages/queries.html">Queries &amp; Operators</a>
           <a class="nav-link" href="pages/query-builder.html">Query Builder</a>
+          <a class="nav-link" href="pages/search.html">Search API</a>
           <a class="nav-link" href="pages/updates.html">Update Operators</a>
           <a class="nav-link" href="pages/indexes.html">Indexes</a>
         </div>
@@ -90,6 +91,17 @@
       <p style="font-size: 1.15rem; color: var(--text-muted); margin-bottom: 2rem;">
         A resilient, zero-dependency, MongoDB-style JSON document database for Node.js.
       </p>
+
+      <div class="callout">
+        <span class="callout-title">What’s new in 1.5.0</span>
+        <ul style="margin:0.5rem 0 0;padding-left:1.2rem">
+          <li><strong>Search API</strong> – <code>collection.search({ keyword, fields, exclude, caseInsensitive })</code></li>
+          <li><strong>Improved project</strong> – proper inclusion / exclusion / mixed (exclusion wins), <code>_id</code> kept by default</li>
+          <li><strong>keepIdIndex</strong> option (default <code>false</code>) for lower memory with auto IDs</li>
+          <li>Better TypeScript definitions with full JSDoc</li>
+        </ul>
+        See the <a href="pages/search.html">Search API</a> page and the updated <a href="pages/query-builder.html">Query Builder</a> docs.
+      </div>
 
       <p>
         <strong>file-json-db</strong> lets you store structured documents on the local filesystem

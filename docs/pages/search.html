@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function(){try{var t=localStorage.getItem('fjdb-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+  </script>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Search API – file-json-db</title>
+  <link rel="stylesheet" href="../css/docs.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="icon-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">☰</button>
+      <a class="topbar-brand" href="../index.html">file-<span>json</span>-db</a>
+    </div>
+  </div>
+  <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo-area">
+        <div class="logo-placeholder">FJ</div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.5.0 · docs</small></div>
+      </div>
+
+      <div class="search-box">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="search-input" type="text" placeholder="Search docs..." autocomplete="off" />
+        <div id="search-results"></div>
+      </div>
+
+      <nav>
+        <div class="nav-section">
+          <div class="nav-title">Getting Started</div>
+          <a class="nav-link" href="../index.html">Introduction</a>
+          <a class="nav-link" href="installation.html">Installation</a>
+          <a class="nav-link" href="quick-start.html">Quick Start</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Core Concepts</div>
+          <a class="nav-link" href="architecture.html">Architecture</a>
+          <a class="nav-link" href="database.html">Database</a>
+          <a class="nav-link" href="collections.html">Collections</a>
+          <a class="nav-link" href="documents-ids.html">Documents &amp; IDs</a>
+          <a class="nav-link" href="storage.html">Storage &amp; Part Files</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Working with Data</div>
+          <a class="nav-link" href="crud.html">CRUD Operations</a>
+          <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
+          <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link active" href="search.html">Search API</a>
+          <a class="nav-link" href="updates.html">Update Operators</a>
+          <a class="nav-link" href="indexes.html">Indexes</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Advanced</div>
+          <a class="nav-link" href="transactions.html">Transactions</a>
+          <a class="nav-link" href="aggregation.html">Aggregation</a>
+          <a class="nav-link" href="async-api.html">Async API</a>
+          <a class="nav-link" href="import-export.html">Import &amp; Export</a>
+          <a class="nav-link" href="backups.html">Backups</a>
+          <a class="nav-link" href="events.html">Events</a>
+          <a class="nav-link" href="error-recovery.html">Error Handling &amp; Recovery</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Reference</div>
+          <a class="nav-link" href="api-reference.html">API Reference</a>
+          <a class="nav-link" href="real-world.html">Real-World Examples</a>
+          <a class="nav-link" href="performance.html">Performance &amp; Limits</a>
+          <a class="nav-link" href="faq.html">FAQ &amp; Troubleshooting</a>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb"><a href="../index.html">Documentation</a> / Search API</div>
+
+      <h1>Search API</h1>
+      <p>
+        Added in <strong>v1.5.0</strong>. The Search API provides a simple, reliable keyword search
+        across the documents of a collection. It is separate from the normal <code>find()</code>
+        query system and is designed for free-text / “contains” style searches.
+      </p>
+
+      <div class="callout">
+        <strong>When to use Search vs find()</strong><br>
+        Use <code>find()</code> for exact filters, operators (<code>$gt</code>, <code>$in</code>, <code>$regex</code> …) and indexed lookups.<br>
+        Use <code>search()</code> when the user types a keyword and you want to look for that text inside one or more fields.
+      </div>
+
+      <h2 id="basic-usage">Basic usage</h2>
+      <pre><code class="language-javascript">const results = users.search({
+  keyword: "john"
+}).toArray();</code></pre>
+
+      <p>
+        The method returns a <strong>QueryBuilder</strong>, so you can still chain
+        <code>.limit()</code>, <code>.skip()</code>, <code>.sort()</code>, <code>.project()</code>,
+        <code>.toArray()</code>, <code>.first()</code> and <code>.count()</code>.
+      </p>
+
+      <h2 id="options">Options</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Option</th>
+            <th>Type</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>keyword</code></td>
+            <td>string</td>
+            <td>—</td>
+            <td>The text to search for (required).</td>
+          </tr>
+          <tr>
+            <td><code>fields</code></td>
+            <td>string[] | null</td>
+            <td><code>null</code></td>
+            <td>Fields to search. <code>null</code> / omitted = search all fields.</td>
+          </tr>
+          <tr>
+            <td><code>exclude</code></td>
+            <td>string[]</td>
+            <td><code>[]</code></td>
+            <td>Fields that should never be searched.</td>
+          </tr>
+          <tr>
+            <td><code>caseInsensitive</code></td>
+            <td>boolean</td>
+            <td><code>true</code></td>
+            <td>Perform a case-insensitive contains match.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 id="examples">Examples</h2>
+
+      <h3>Search specific fields</h3>
+      <pre><code class="language-javascript">users.search({
+  keyword: "alice",
+  fields: ["name", "email", "bio"]
+}).toArray();</code></pre>
+
+      <h3>Exclude sensitive fields</h3>
+      <pre><code class="language-javascript">users.search({
+  keyword: "secret",
+  exclude: ["password", "token", "ssn"]
+}).toArray();</code></pre>
+
+      <h3>Case-sensitive search</h3>
+      <pre><code class="language-javascript">users.search({
+  keyword: "Alice",
+  caseInsensitive: false
+}).toArray();</code></pre>
+
+      <h3>With limit, sort and project</h3>
+      <pre><code class="language-javascript">const page = users.search({ keyword: "dev" })
+  .sort({ name: 1 })
+  .limit(20)
+  .project({ name: 1, email: 1 })
+  .toArray();</code></pre>
+
+      <h3>Count matches</h3>
+      <pre><code class="language-javascript">const total = users.search({ keyword: "engineer" }).count();</code></pre>
+
+      <h2 id="async">Async version</h2>
+      <pre><code class="language-javascript">const builder = await users.searchAsync({ keyword: "john" });
+const docs = builder.limit(10).toArray();</code></pre>
+
+      <h2 id="matching-rules">Matching rules</h2>
+      <ul>
+        <li>Matching is a simple <strong>contains</strong> (substring) check.</li>
+        <li>By default it is <strong>case-insensitive</strong>.</li>
+        <li>Only string and number values are considered (other types are skipped).</li>
+        <li>Nested fields can be targeted by passing the dotted path in <code>fields</code>.</li>
+      </ul>
+
+      <h2 id="migration">Migration / What changed</h2>
+      <p>
+        This is a pure addition. Existing <code>find()</code> / <code>findAsync()</code> code
+        continues to work exactly as before. No breaking changes.
+      </p>
+
+      <div class="page-footer">
+        <a href="query-builder.html">← Query Builder</a>
+        <a href="updates.html">Update Operators →</a>
+      </div>
+    </main>
+  </div>
+  <script>hljs.highlightAll();</script>
+  <script src="../js/script.js"></script>
+  <button class="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle theme"></button>
+</body>
+</html>

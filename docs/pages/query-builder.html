@@ -25,7 +25,7 @@
     <aside class="sidebar">
             <div class="logo-area">
         <div class="logo-placeholder">FJ</div>
-        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.5.0 · docs</small></div>
       </div>
 
       <div class="search-box">
@@ -54,6 +54,7 @@
           <a class="nav-link" href="crud.html">CRUD Operations</a>
           <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
           <a class="nav-link active" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="search.html">Search API</a>
           <a class="nav-link" href="updates.html">Update Operators</a>
           <a class="nav-link" href="indexes.html">Indexes</a>
         </div>
@@ -127,14 +128,25 @@ posts.find({}).sort({ createdAt: -1, title: 1 }).toArray();</code></pre>
 
       <h3>.project(spec)</h3>
       <p>
-        Include or exclude fields from the returned documents.
-        Use <code>1</code> to keep a field, <code>0</code> to drop it.
+        Include or exclude fields from the returned documents (improved in v1.5.0).
       </p>
-      <pre><code class="language-javascript">// Only return name and email
+      <ul>
+        <li><strong>Inclusion</strong> – <code>{ name: 1, email: 1 }</code> keeps only those fields (+ <code>_id</code> by default)</li>
+        <li><strong>Exclusion</strong> – <code>{ password: 0 }</code> removes the listed fields</li>
+        <li><strong>Mixed</strong> – allowed; exclusion wins</li>
+        <li><code>_id</code> is kept by default. Pass <code>_id: 0</code> to hide it.</li>
+      </ul>
+      <pre><code class="language-javascript">// Only return name and email (+ _id)
 users.find({}).project({ name: 1, email: 1 }).toArray();
 
-// Return everything except the password hash
-users.find({}).project({ passwordHash: 0 }).toArray();</code></pre>
+// Return everything except the password
+users.find({}).project({ password: 0 }).toArray();
+
+// Mixed – exclusion wins for password
+users.find({}).project({ name: 1, password: 0, age: 1 }).toArray();
+
+// Hide _id as well
+users.find({}).project({ name: 1, _id: 0 }).toArray();</code></pre>
 
       <h3>.toArray()</h3>
       <p>Execute the query and return an array of documents.</p>

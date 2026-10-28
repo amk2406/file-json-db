@@ -25,7 +25,7 @@
     <aside class="sidebar">
             <div class="logo-area">
         <div class="logo-placeholder">FJ</div>
-        <div class="logo-text">file-<span>json</span>-db<small>v1.4.0 · docs</small></div>
+        <div class="logo-text">file-<span>json</span>-db<small>v1.5.0 · docs</small></div>
       </div>
 
       <div class="search-box">
@@ -54,6 +54,7 @@
           <a class="nav-link" href="crud.html">CRUD Operations</a>
           <a class="nav-link" href="queries.html">Queries &amp; Operators</a>
           <a class="nav-link" href="query-builder.html">Query Builder</a>
+          <a class="nav-link" href="search.html">Search API</a>
           <a class="nav-link" href="updates.html">Update Operators</a>
           <a class="nav-link" href="indexes.html">Indexes</a>
         </div>
@@ -82,7 +83,7 @@
 
       <h1>API Reference</h1>
       <p>
-        Complete reference for the public surface of file-json-db v1.4.0.
+        Complete reference for the public surface of file-json-db v1.5.0.
         Types are shown in TypeScript style for clarity.
       </p>
 
@@ -117,6 +118,7 @@
   maxPartSize?: number;      // default 256 * 1024
   maxRecords?: number | null;
   errorLevel?: 'debug' | 'ignore';  // default 'debug'
+  keepIdIndex?: boolean;     // default false – compact ranges for auto IDs
 }</code></pre>
 
       <h2>Collection</h2>
@@ -132,6 +134,21 @@
       <div class="method-sig"><span class="name">findAsync</span>(query?: <span class="type">object</span>) → <span class="return">Promise&lt;QueryBuilder&gt;</span></div>
       <div class="method-sig"><span class="name">findOne</span>(query?: <span class="type">object</span>) → <span class="return">object | null</span></div>
       <div class="method-sig"><span class="name">findOneAsync</span>(query?: <span class="type">object</span>) → <span class="return">Promise&lt;object | null&gt;</span></div>
+
+      <h3>Search <span style="font-size:0.75em;opacity:0.7">(new in 1.5.0)</span></h3>
+      <div class="method-sig"><span class="name">search</span>(options: <span class="type">SearchOptions</span>) → <span class="return">QueryBuilder</span></div>
+      <div class="method-sig"><span class="name">searchAsync</span>(options: <span class="type">SearchOptions</span>) → <span class="return">Promise&lt;QueryBuilder&gt;</span></div>
+      <pre><code class="language-typescript">interface SearchOptions {
+  keyword: string;                 // required
+  fields?: string[] | null;        // null = all fields
+  exclude?: string[];              // fields to skip
+  caseInsensitive?: boolean;       // default true
+}</code></pre>
+      <p>
+        Simple keyword (contains) search. Returns a QueryBuilder so you can still
+        chain <code>.limit()</code>, <code>.sort()</code>, <code>.project()</code>, <code>.toArray()</code>, etc.
+        See the <a href="search.html">Search API</a> page for full details and examples.
+      </p>
 
       <h3>Update</h3>
       <div class="method-sig"><span class="name">updateOne</span>(filter: <span class="type">object</span>, update: <span class="type">object</span>) → <span class="return">object | null</span></div>
@@ -160,6 +177,10 @@
       <div class="method-sig"><span class="name">skip</span>(n: <span class="type">number</span>) → <span class="return">this</span></div>
       <div class="method-sig"><span class="name">sort</span>(spec: <span class="type">object</span>) → <span class="return">this</span></div>
       <div class="method-sig"><span class="name">project</span>(spec: <span class="type">object</span>) → <span class="return">this</span></div>
+      <p style="margin:0.25rem 0 0.75rem;font-size:0.9em;opacity:0.85">
+        Supports inclusion (<code>{name:1}</code>), exclusion (<code>{password:0}</code>), mixed (exclusion wins),
+        and <code>_id</code> is kept by default (use <code>_id:0</code> to hide). Improved in 1.5.0.
+      </p>
       <div class="method-sig"><span class="name">toArray</span>() → <span class="return">object[]</span></div>
       <div class="method-sig"><span class="name">first</span>() → <span class="return">object | null</span></div>
       <div class="method-sig"><span class="name">count</span>() → <span class="return">number</span></div>
