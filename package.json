@@ -1,11 +1,13 @@
 {
   "name": "file-json-db",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "A resilient, zero-dependency, MongoDB-style JSON document database for Node.js",
   "main": "db.js",
   "types": "db.d.ts",
   "scripts": {
     "test": "node test/basic.js",
+    "test:search": "node test/search.test.js",
+    "test:project": "node test/project.test.js",
     "example": "node examples/basic.js",
     "test:all": "node test/comprehensive.js"
   },
@@ -23,11 +25,14 @@
     "resilient",
     "transactions",
     "aggregation",
+    "search",
     "nodejs",
     "zero-dependency"
   ],
-  "homepage": "https://github.com/amk2406/file-json-db",
-  "readme": "README.md",
+  "homepage": "https://amk2406.github.io/file-json-db",
+  "bugs": {
+    "url": "https://github.com/amk2406/file-json-db/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/amk2406/file-json-db.git"
@@ -43,9 +48,8 @@
     "LICENSE",
     "README.md",
     "package.json",
-    "test/basic.js",
-    "examples/basic.js",
     "CHANGELOG.md",
-    "test/comprehensive.js"
+    "examples/",
+    "test/"
   ]
 }

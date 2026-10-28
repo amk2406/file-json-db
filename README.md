@@ -1,6 +1,28 @@
-# file-json-db – Complete Guide (A to Z)
+# file-json-db
 
-A resilient, **zero-dependency, MongoDB-style JSON document database for Node.js**.
+
+**Documentation:** https://amk2406.github.io/file-json-db  
+**GitHub:** https://github.com/amk2406/file-json-db  
+**npm:** `npm install file-json-db`
+
+---
+
+### What's new in 1.5.0
+
+- **Search API** – simple keyword search across fields  
+  ```js
+  users.search({ keyword: "john", fields: ["name", "email"] })
+    .limit(10)
+    .project({ name: 1 })
+    .toArray();
+  ```
+- **Improved `.project()` / `$project`** – proper inclusion, exclusion, mixed mode (exclusion wins), `_id` included by default
+- **`keepIdIndex` option** (default `false`) for lower memory usage with auto IDs
+- Better TypeScript definitions with full JSDoc
+
+---
+
+
 
 `file-json-db` stores documents on disk while keeping a smart index in memory. Collections are represented as folders, data is split across multiple part files, and writes use atomic file replacement with retry handling.
 
