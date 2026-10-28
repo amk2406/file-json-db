@@ -2,6 +2,32 @@
 
 All notable changes to **file-json-db** are documented in this file.
 
+## [1.5.0] - 2026-10-28
+
+### Added
+- **New Search API** – `collection.search({ keyword, fields?, exclude?, caseInsensitive? })`
+  - Simple, reliable keyword search across fields
+  - Returns a QueryBuilder so you can still chain `.limit()`, `.sort()`, `.project()`, `.toArray()`
+  - Also available as `searchAsync()`
+- **`keepIdIndex` collection option** (default `false`)
+  - When `idType: "auto"` and `keepIdIndex: false`, the engine prefers a compact representation to reduce memory usage of the primary index.
+
+### Fixed / Improved
+- **Project API** now correctly supports:
+  - Inclusion (`{ name: 1, email: 1 }`)
+  - Exclusion (`{ password: 0 }`)
+  - Mixed projections (exclusion wins)
+  - `_id` is included by default (use `_id: 0` to hide it)
+- Same improved projection logic is used by both QueryBuilder `.project()` and aggregation `$project`.
+- Better TypeScript definitions (`db.d.ts`) with full JSDoc for VS Code IntelliSense.
+- New focused test files: `test/project.test.js`, `test/search.test.js`.
+
+### Docs
+- Homepage now points to GitHub Pages documentation.
+- README and HTML documentation updated for the new features.
+
+---
+
 ## [1.4.0] - 2026-10-08
 
 ### Fixed
